@@ -1,12 +1,13 @@
 /**
- * Switzerland Crop Nutrients MCP — Data Ingestion Script
+ * Switzerland Veterinary Medicines MCP — Data Ingestion Script
  *
- * Populates the database with Swiss crop nutrient data from:
- * - GRUD 2017 (Agroscope) — Duengungsnormen, Naehrstoffbedarf pro Kultur
- * - Suisse-Bilanz Wegleitung (BLW) — Betriebsbilanz, Korrekturfaktoren
- * - AGRIDEA — Duengungsplanung, kantonale Empfehlungen
- * - SBV / BLW — Produzentenpreise, Marktbeobachtung
- * - GRUD Kapitel 10 — Naehrstoffgehalte Hofduenger
+ * Populates the database with Swiss veterinary medicine data from:
+ * - Swissmedic — Tierarzneimittel-Kompendium (tierarzneimittel.ch), Zulassungen
+ * - BLV — IS ABV-Daten, TAMV (Tierarzneimittelverordnung), Antibiotikastrategie StAR
+ * - ARCH-Vet — Swiss Antibiotic Resistance Monitoring Report (jaehrlich)
+ * - GST — Therapierichtlinien, Ampelsystem
+ *
+ * All data in German (primary language for Swiss federal veterinary data).
  *
  * Usage: npm run ingest
  */
@@ -20,542 +21,1134 @@ const db = createDatabase('data/database.db');
 const now = new Date().toISOString().split('T')[0];
 
 // ---------------------------------------------------------------------------
-// 1. Crops — Swiss arable, forage, root crops, permanent grassland
-//    Sources: GRUD 2017 (Agroscope), DZV Anhang, AGRIDEA Deckungsbeitraege
+// 1. Medicines — Zugelassene Tierarzneimittel (Swissmedic)
+//    Categories: Antibiotika, Antiparasitika, Entzuendungshemmer, Hormone, etc.
 // ---------------------------------------------------------------------------
 
-interface Crop {
+interface Medicine {
   id: string;
   name: string;
-  crop_group: string;
-  typical_yield_t_ha: number;
-  nutrient_offtake_n: number;
-  nutrient_offtake_p2o5: number;
-  nutrient_offtake_k2o: number;
-  growth_stages: string[];
-  altitude_zone: string;
+  active_substance: string;
+  species: string;
+  administration_route: string;
+  swissmedic_number: string;
+  category: string;
 }
 
-const crops: Crop[] = [
-  // --- Getreide (Talzone) ---
+const medicines: Medicine[] = [
+  // --- Antibiotika: Penicilline (Gruen) ---
   {
-    id: 'winterweizen',
-    name: 'Winterweizen',
-    crop_group: 'getreide',
-    typical_yield_t_ha: 6.5,
-    nutrient_offtake_n: 130,
-    nutrient_offtake_p2o5: 52,
-    nutrient_offtake_k2o: 39,
-    growth_stages: ['Bestockung', 'Schossen', 'Aehrenschieben', 'Bluete', 'Kornfuellung', 'Reife'],
-    altitude_zone: 'talzone',
+    id: 'amoxicillin-rind-schwein',
+    name: 'Clamoxyl RTU',
+    active_substance: 'Amoxicillin',
+    species: 'Rind, Schwein',
+    administration_route: 'Injektion (i.m.)',
+    swissmedic_number: 'TAM-55001',
+    category: 'B',
   },
   {
-    id: 'sommerweizen',
-    name: 'Sommerweizen',
-    crop_group: 'getreide',
-    typical_yield_t_ha: 5.5,
-    nutrient_offtake_n: 110,
-    nutrient_offtake_p2o5: 44,
-    nutrient_offtake_k2o: 33,
-    growth_stages: ['Bestockung', 'Schossen', 'Aehrenschieben', 'Bluete', 'Kornfuellung', 'Reife'],
-    altitude_zone: 'talzone',
+    id: 'amoxicillin-oral-schwein',
+    name: 'Suramox 50% Pulver',
+    active_substance: 'Amoxicillin',
+    species: 'Schwein, Gefluegel',
+    administration_route: 'Oral (Trinkwasser/Futter)',
+    swissmedic_number: 'TAM-55002',
+    category: 'B',
   },
   {
-    id: 'wintergerste',
-    name: 'Wintergerste',
-    crop_group: 'getreide',
-    typical_yield_t_ha: 6.0,
-    nutrient_offtake_n: 108,
-    nutrient_offtake_p2o5: 48,
-    nutrient_offtake_k2o: 42,
-    growth_stages: ['Bestockung', 'Schossen', 'Aehrenschieben', 'Kornfuellung', 'Reife'],
-    altitude_zone: 'talzone',
+    id: 'penicillin-g-rind',
+    name: 'Procacillin',
+    active_substance: 'Benzylpenicillin-Procain',
+    species: 'Rind, Schwein, Schaf, Ziege',
+    administration_route: 'Injektion (i.m.)',
+    swissmedic_number: 'TAM-55003',
+    category: 'B',
   },
   {
-    id: 'sommergerste',
-    name: 'Sommergerste',
-    crop_group: 'getreide',
-    typical_yield_t_ha: 5.0,
-    nutrient_offtake_n: 85,
-    nutrient_offtake_p2o5: 40,
-    nutrient_offtake_k2o: 35,
-    growth_stages: ['Bestockung', 'Schossen', 'Aehrenschieben', 'Kornfuellung', 'Reife'],
-    altitude_zone: 'talzone',
+    id: 'penethamat-rind',
+    name: 'Mamyzin',
+    active_substance: 'Penethamathydrojodid',
+    species: 'Rind',
+    administration_route: 'Injektion (i.m.)',
+    swissmedic_number: 'TAM-55004',
+    category: 'B',
   },
   {
-    id: 'winterraps',
-    name: 'Winterraps',
-    crop_group: 'oelsaaten',
-    typical_yield_t_ha: 3.5,
-    nutrient_offtake_n: 140,
-    nutrient_offtake_p2o5: 56,
-    nutrient_offtake_k2o: 49,
-    growth_stages: ['Rosette', 'Streckung', 'Knospe', 'Bluete', 'Schote', 'Reife'],
-    altitude_zone: 'talzone',
+    id: 'amoxicillin-clavulan-rind',
+    name: 'Synulox RTU',
+    active_substance: 'Amoxicillin + Clavulansaeure',
+    species: 'Rind, Schwein, Hund, Katze',
+    administration_route: 'Injektion (s.c.)',
+    swissmedic_number: 'TAM-55005',
+    category: 'B',
+  },
+
+  // --- Antibiotika: Tetracycline (Gruen) ---
+  {
+    id: 'oxytetracyclin-rind',
+    name: 'Terramycin LA',
+    active_substance: 'Oxytetracyclin',
+    species: 'Rind, Schwein, Schaf',
+    administration_route: 'Injektion (i.m.)',
+    swissmedic_number: 'TAM-55010',
+    category: 'B',
   },
   {
-    id: 'sonnenblumen',
-    name: 'Sonnenblumen',
-    crop_group: 'oelsaaten',
-    typical_yield_t_ha: 3.0,
-    nutrient_offtake_n: 105,
-    nutrient_offtake_p2o5: 42,
-    nutrient_offtake_k2o: 105,
-    growth_stages: ['Auflaufen', 'Rosette', 'Stengel', 'Knospe', 'Bluete', 'Kornfuellung', 'Reife'],
-    altitude_zone: 'talzone',
+    id: 'doxycyclin-schwein',
+    name: 'Doxyprex 50%',
+    active_substance: 'Doxycyclin',
+    species: 'Schwein, Gefluegel',
+    administration_route: 'Oral (Trinkwasser)',
+    swissmedic_number: 'TAM-55011',
+    category: 'B',
   },
   {
-    id: 'koernermais',
-    name: 'Koernermais',
-    crop_group: 'getreide',
-    typical_yield_t_ha: 10.0,
-    nutrient_offtake_n: 140,
-    nutrient_offtake_p2o5: 65,
-    nutrient_offtake_k2o: 50,
-    growth_stages: ['Auflaufen', '4-6 Blatt', 'Schossen', 'Fahnenschieben', 'Bluete', 'Kornfuellung', 'Reife'],
-    altitude_zone: 'talzone',
+    id: 'chlortetracyclin-schwein',
+    name: 'Chlortetravet 20%',
+    active_substance: 'Chlortetracyclin',
+    species: 'Schwein',
+    administration_route: 'Oral (Futter)',
+    swissmedic_number: 'TAM-55012',
+    category: 'B',
+  },
+
+  // --- Antibiotika: Sulfonamide/TMP (Gruen) ---
+  {
+    id: 'tmp-sulfonamid-rind',
+    name: 'Borgal 24%',
+    active_substance: 'Trimethoprim + Sulfadoxin',
+    species: 'Rind, Schwein, Pferd',
+    administration_route: 'Injektion (i.v., i.m.)',
+    swissmedic_number: 'TAM-55020',
+    category: 'B',
   },
   {
-    id: 'silomais',
-    name: 'Silomais',
-    crop_group: 'futterbau',
-    typical_yield_t_ha: 17.0,
-    nutrient_offtake_n: 170,
-    nutrient_offtake_p2o5: 68,
-    nutrient_offtake_k2o: 204,
-    growth_stages: ['Auflaufen', '4-6 Blatt', 'Schossen', 'Fahnenschieben', 'Bluete', 'Teigreife'],
-    altitude_zone: 'talzone',
+    id: 'tmp-sulfa-oral-schwein',
+    name: 'TMP-Sulfa Suspension',
+    active_substance: 'Trimethoprim + Sulfamethoxazol',
+    species: 'Schwein, Kalb',
+    administration_route: 'Oral',
+    swissmedic_number: 'TAM-55021',
+    category: 'B',
+  },
+
+  // --- Antibiotika: Makrolide (Gelb) ---
+  {
+    id: 'tylosin-schwein',
+    name: 'Tylan 200',
+    active_substance: 'Tylosin',
+    species: 'Schwein, Rind, Gefluegel',
+    administration_route: 'Injektion (i.m.)',
+    swissmedic_number: 'TAM-55030',
+    category: 'B',
   },
   {
-    id: 'kartoffeln',
-    name: 'Kartoffeln',
-    crop_group: 'hackfruechte',
-    typical_yield_t_ha: 40.0,
-    nutrient_offtake_n: 160,
-    nutrient_offtake_p2o5: 32,
-    nutrient_offtake_k2o: 200,
-    growth_stages: ['Auflaufen', 'Stauden', 'Bluete', 'Krautabsterben', 'Ernte'],
-    altitude_zone: 'talzone',
+    id: 'tulathromycin-rind',
+    name: 'Draxxin',
+    active_substance: 'Tulathromycin',
+    species: 'Rind, Schwein',
+    administration_route: 'Injektion (s.c.)',
+    swissmedic_number: 'TAM-55031',
+    category: 'B',
   },
   {
-    id: 'zuckerrueben',
-    name: 'Zuckerrueben',
-    crop_group: 'hackfruechte',
-    typical_yield_t_ha: 75.0,
-    nutrient_offtake_n: 150,
-    nutrient_offtake_p2o5: 53,
-    nutrient_offtake_k2o: 225,
-    growth_stages: ['Auflaufen', '4-Blatt', 'Reihenschluss', 'Wachstum', 'Zuckereinlagerung', 'Ernte'],
-    altitude_zone: 'talzone',
+    id: 'tilmicosin-rind',
+    name: 'Micotil 300',
+    active_substance: 'Tilmicosin',
+    species: 'Rind, Schaf',
+    administration_route: 'Injektion (s.c.)',
+    swissmedic_number: 'TAM-55032',
+    category: 'B',
   },
   {
-    id: 'kunstwiese-3j',
-    name: 'Kunstwiese 3-jaehrig',
-    crop_group: 'futterbau',
-    typical_yield_t_ha: 12.0,
-    nutrient_offtake_n: 240,
-    nutrient_offtake_p2o5: 72,
-    nutrient_offtake_k2o: 264,
-    growth_stages: ['1. Schnitt', '2. Schnitt', '3. Schnitt', '4. Schnitt'],
-    altitude_zone: 'talzone',
+    id: 'spiramycin-rind',
+    name: 'Suanovil',
+    active_substance: 'Spiramycin',
+    species: 'Rind',
+    administration_route: 'Intramammaer',
+    swissmedic_number: 'TAM-55033',
+    category: 'B',
+  },
+
+  // --- Antibiotika: Aminoglykoside (Gelb) ---
+  {
+    id: 'gentamicin-rind',
+    name: 'Gentamicin 5%',
+    active_substance: 'Gentamicin',
+    species: 'Rind, Schwein, Pferd',
+    administration_route: 'Injektion (i.m., i.v.)',
+    swissmedic_number: 'TAM-55040',
+    category: 'B',
   },
   {
-    id: 'naturwiese-intensiv',
-    name: 'Naturwiese intensiv',
-    crop_group: 'futterbau',
-    typical_yield_t_ha: 10.0,
-    nutrient_offtake_n: 180,
-    nutrient_offtake_p2o5: 60,
-    nutrient_offtake_k2o: 220,
-    growth_stages: ['1. Schnitt', '2. Schnitt', '3. Schnitt', '4. Schnitt'],
-    altitude_zone: 'talzone',
+    id: 'neomycin-kalb',
+    name: 'Neomycin Oral',
+    active_substance: 'Neomycin',
+    species: 'Kalb, Schwein, Gefluegel',
+    administration_route: 'Oral',
+    swissmedic_number: 'TAM-55041',
+    category: 'B',
   },
   {
-    id: 'naturwiese-mittelintensiv',
-    name: 'Naturwiese mittelintensiv',
-    crop_group: 'futterbau',
-    typical_yield_t_ha: 7.5,
-    nutrient_offtake_n: 120,
-    nutrient_offtake_p2o5: 45,
-    nutrient_offtake_k2o: 165,
-    growth_stages: ['1. Schnitt', '2. Schnitt', '3. Schnitt'],
-    altitude_zone: 'talzone',
+    id: 'dihydrostreptomycin-rind',
+    name: 'Pen-Strep',
+    active_substance: 'Benzylpenicillin + Dihydrostreptomycin',
+    species: 'Rind, Schwein, Schaf',
+    administration_route: 'Injektion (i.m.)',
+    swissmedic_number: 'TAM-55042',
+    category: 'B',
+  },
+
+  // --- Antibiotika: Fluoroquinolone (Rot) ---
+  {
+    id: 'enrofloxacin-rind',
+    name: 'Baytril 10%',
+    active_substance: 'Enrofloxacin',
+    species: 'Rind, Schwein',
+    administration_route: 'Injektion (s.c.)',
+    swissmedic_number: 'TAM-55050',
+    category: 'A',
   },
   {
-    id: 'naturwiese-extensiv',
-    name: 'Naturwiese extensiv (BFF)',
-    crop_group: 'futterbau',
-    typical_yield_t_ha: 4.0,
-    nutrient_offtake_n: 0,
-    nutrient_offtake_p2o5: 0,
-    nutrient_offtake_k2o: 0,
-    growth_stages: ['1. Schnitt (ab 15.6.)', '2. Schnitt'],
-    altitude_zone: 'talzone',
+    id: 'marbofloxacin-rind',
+    name: 'Marbocyl 10%',
+    active_substance: 'Marbofloxacin',
+    species: 'Rind, Schwein',
+    administration_route: 'Injektion (i.m., i.v.)',
+    swissmedic_number: 'TAM-55051',
+    category: 'A',
   },
   {
-    id: 'dinkel',
-    name: 'Dinkel',
-    crop_group: 'getreide',
-    typical_yield_t_ha: 4.5,
-    nutrient_offtake_n: 100,
-    nutrient_offtake_p2o5: 41,
-    nutrient_offtake_k2o: 32,
-    growth_stages: ['Bestockung', 'Schossen', 'Aehrenschieben', 'Bluete', 'Kornfuellung', 'Reife'],
-    altitude_zone: 'talzone',
+    id: 'danofloxacin-rind',
+    name: 'Advocin 180',
+    active_substance: 'Danofloxacin',
+    species: 'Rind',
+    administration_route: 'Injektion (s.c.)',
+    swissmedic_number: 'TAM-55052',
+    category: 'A',
+  },
+
+  // --- Antibiotika: Cephalosporine 3./4. Gen (Rot) ---
+  {
+    id: 'ceftiofur-rind',
+    name: 'Excenel RTU',
+    active_substance: 'Ceftiofur',
+    species: 'Rind, Schwein',
+    administration_route: 'Injektion (i.m.)',
+    swissmedic_number: 'TAM-55060',
+    category: 'A',
   },
   {
-    id: 'triticale',
-    name: 'Triticale',
-    crop_group: 'getreide',
-    typical_yield_t_ha: 6.0,
-    nutrient_offtake_n: 108,
-    nutrient_offtake_p2o5: 48,
-    nutrient_offtake_k2o: 42,
-    growth_stages: ['Bestockung', 'Schossen', 'Aehrenschieben', 'Kornfuellung', 'Reife'],
-    altitude_zone: 'talzone',
+    id: 'cefquinom-rind',
+    name: 'Cobactan 2.5%',
+    active_substance: 'Cefquinom',
+    species: 'Rind, Schwein, Pferd',
+    administration_route: 'Injektion (i.m.)',
+    swissmedic_number: 'TAM-55061',
+    category: 'A',
   },
   {
-    id: 'koernereiweisserbsen',
-    name: 'Eiweisserbsen',
-    crop_group: 'koernerleguminosen',
-    typical_yield_t_ha: 3.5,
-    nutrient_offtake_n: 0,
-    nutrient_offtake_p2o5: 35,
-    nutrient_offtake_k2o: 42,
-    growth_stages: ['Auflaufen', 'Verzweigung', 'Bluete', 'Huelsenfuellung', 'Reife'],
-    altitude_zone: 'talzone',
+    id: 'cefalonium-rind',
+    name: 'Cepravin DC',
+    active_substance: 'Cefalonium',
+    species: 'Rind',
+    administration_route: 'Intramammaer',
+    swissmedic_number: 'TAM-55062',
+    category: 'B',
+  },
+
+  // --- Antibiotika: Sonstige ---
+  {
+    id: 'florfenicol-rind',
+    name: 'Nuflor',
+    active_substance: 'Florfenicol',
+    species: 'Rind, Schwein',
+    administration_route: 'Injektion (i.m.)',
+    swissmedic_number: 'TAM-55070',
+    category: 'B',
   },
   {
-    id: 'sojabohnen',
-    name: 'Sojabohnen',
-    crop_group: 'koernerleguminosen',
-    typical_yield_t_ha: 3.0,
-    nutrient_offtake_n: 0,
-    nutrient_offtake_p2o5: 42,
-    nutrient_offtake_k2o: 48,
-    growth_stages: ['Auflaufen', 'Verzweigung', 'Bluete', 'Huelsenfuellung', 'Reife'],
-    altitude_zone: 'talzone',
+    id: 'lincomycin-schwein',
+    name: 'Lincomycin 40%',
+    active_substance: 'Lincomycin',
+    species: 'Schwein, Gefluegel',
+    administration_route: 'Oral (Trinkwasser)',
+    swissmedic_number: 'TAM-55071',
+    category: 'B',
+  },
+  {
+    id: 'colistin-schwein',
+    name: 'Colistin Oral',
+    active_substance: 'Colistin',
+    species: 'Schwein, Kalb',
+    administration_route: 'Oral',
+    swissmedic_number: 'TAM-55072',
+    category: 'A',
+  },
+
+  // --- Antiparasitika ---
+  {
+    id: 'ivermectin-rind',
+    name: 'Ivomec',
+    active_substance: 'Ivermectin',
+    species: 'Rind, Schwein, Schaf',
+    administration_route: 'Injektion (s.c.) / Pour-on',
+    swissmedic_number: 'TAM-56001',
+    category: 'B',
+  },
+  {
+    id: 'eprinomectin-rind',
+    name: 'Eprinex Pour-On',
+    active_substance: 'Eprinomectin',
+    species: 'Rind',
+    administration_route: 'Pour-on',
+    swissmedic_number: 'TAM-56002',
+    category: 'B',
+  },
+  {
+    id: 'fenbendazol-rind',
+    name: 'Panacur',
+    active_substance: 'Fenbendazol',
+    species: 'Rind, Schwein, Schaf, Ziege, Pferd',
+    administration_route: 'Oral',
+    swissmedic_number: 'TAM-56003',
+    category: 'D',
+  },
+  {
+    id: 'albendazol-rind',
+    name: 'Valbazen',
+    active_substance: 'Albendazol',
+    species: 'Rind, Schaf',
+    administration_route: 'Oral',
+    swissmedic_number: 'TAM-56004',
+    category: 'B',
+  },
+  {
+    id: 'triclabendazol-rind',
+    name: 'Fasinex 10%',
+    active_substance: 'Triclabendazol',
+    species: 'Rind, Schaf',
+    administration_route: 'Oral',
+    swissmedic_number: 'TAM-56005',
+    category: 'B',
+  },
+
+  // --- Entzuendungshemmer (NSAIDs) ---
+  {
+    id: 'meloxicam-rind',
+    name: 'Metacam 20',
+    active_substance: 'Meloxicam',
+    species: 'Rind, Schwein',
+    administration_route: 'Injektion (s.c., i.v.)',
+    swissmedic_number: 'TAM-57001',
+    category: 'B',
+  },
+  {
+    id: 'flunixin-rind',
+    name: 'Finadyne',
+    active_substance: 'Flunixin-Meglumin',
+    species: 'Rind, Schwein, Pferd',
+    administration_route: 'Injektion (i.v.)',
+    swissmedic_number: 'TAM-57002',
+    category: 'B',
+  },
+  {
+    id: 'ketoprofen-rind',
+    name: 'Romefen',
+    active_substance: 'Ketoprofen',
+    species: 'Rind, Schwein, Pferd',
+    administration_route: 'Injektion (i.v., i.m.)',
+    swissmedic_number: 'TAM-57003',
+    category: 'B',
+  },
+  {
+    id: 'tolfenamin-rind',
+    name: 'Tolfedine',
+    active_substance: 'Tolfenamsaeure',
+    species: 'Rind, Schwein',
+    administration_route: 'Injektion (i.v., i.m.)',
+    swissmedic_number: 'TAM-57004',
+    category: 'B',
+  },
+
+  // --- Intramammaere Praeparate ---
+  {
+    id: 'cloxacillin-rind-trockenst',
+    name: 'Orbenin Extra DC',
+    active_substance: 'Cloxacillin',
+    species: 'Rind',
+    administration_route: 'Intramammaer (Trockensteller)',
+    swissmedic_number: 'TAM-55080',
+    category: 'B',
+  },
+  {
+    id: 'amoxicillin-intramam',
+    name: 'Amoxi-Mast',
+    active_substance: 'Amoxicillin + Clavulansaeure',
+    species: 'Rind',
+    administration_route: 'Intramammaer (Laktation)',
+    swissmedic_number: 'TAM-55081',
+    category: 'B',
+  },
+  {
+    id: 'cefapirin-rind',
+    name: 'Cefaguard DC',
+    active_substance: 'Cefapirin',
+    species: 'Rind',
+    administration_route: 'Intramammaer (Trockensteller)',
+    swissmedic_number: 'TAM-55082',
+    category: 'B',
+  },
+
+  // --- Hormone ---
+  {
+    id: 'cloprostenol-rind',
+    name: 'Estrumate',
+    active_substance: 'Cloprostenol',
+    species: 'Rind, Schwein',
+    administration_route: 'Injektion (i.m.)',
+    swissmedic_number: 'TAM-58001',
+    category: 'B',
+  },
+  {
+    id: 'buserelin-rind',
+    name: 'Receptal',
+    active_substance: 'Buserelin',
+    species: 'Rind',
+    administration_route: 'Injektion (i.m., i.v.)',
+    swissmedic_number: 'TAM-58002',
+    category: 'B',
+  },
+  {
+    id: 'oxytocin-rind',
+    name: 'Oxytocin 10 IE',
+    active_substance: 'Oxytocin',
+    species: 'Rind, Schwein, Schaf, Ziege',
+    administration_route: 'Injektion (i.v., i.m.)',
+    swissmedic_number: 'TAM-58003',
+    category: 'B',
+  },
+
+  // --- Sonstige ---
+  {
+    id: 'calciumgluconat-rind',
+    name: 'Calcitat 40%',
+    active_substance: 'Calciumgluconat + Calciumborogluconat',
+    species: 'Rind',
+    administration_route: 'Injektion (i.v. langsam)',
+    swissmedic_number: 'TAM-59001',
+    category: 'D',
+  },
+  {
+    id: 'eisendextran-ferkel',
+    name: 'Ursoferran',
+    active_substance: 'Eisen(III)-hydroxid-Dextran-Komplex',
+    species: 'Schwein (Ferkel)',
+    administration_route: 'Injektion (i.m.)',
+    swissmedic_number: 'TAM-59002',
+    category: 'D',
+  },
+  {
+    id: 'butaphosphan-rind',
+    name: 'Catosal',
+    active_substance: 'Butaphosphan + Cyanocobalamin',
+    species: 'Rind, Schwein, Pferd, Hund, Katze',
+    administration_route: 'Injektion (i.v., i.m., s.c.)',
+    swissmedic_number: 'TAM-59003',
+    category: 'D',
+  },
+  {
+    id: 'propylenglykoloral-rind',
+    name: 'Ketol',
+    active_substance: 'Propylenglykol',
+    species: 'Rind',
+    administration_route: 'Oral',
+    swissmedic_number: 'TAM-59004',
+    category: 'E',
   },
 ];
 
-// ---------------------------------------------------------------------------
-// 2. Soil Types — Swiss soil classification (10 types)
-//    Source: GRUD Anhang, Bodenkarte Schweiz
-// ---------------------------------------------------------------------------
+const insertMedicine = db.instance.prepare(
+  `INSERT OR REPLACE INTO medicines (id, name, active_substance, species, administration_route, swissmedic_number, category, jurisdiction, language)
+   VALUES (?, ?, ?, ?, ?, ?, ?, 'CH', 'DE')`
+);
 
-interface SoilType {
-  id: string;
-  name: string;
-  soil_group: number;
-  texture: string;
-  drainage_class: string;
-  ph_class: string;
-  description: string;
+for (const m of medicines) {
+  insertMedicine.run(m.id, m.name, m.active_substance, m.species, m.administration_route, m.swissmedic_number, m.category);
 }
 
-const soilTypes: SoilType[] = [
-  { id: 'leichter-sand', name: 'Leichter Sandboden', soil_group: 1, texture: 'sand', drainage_class: 'sehr durchlaessig', ph_class: 'B', description: 'Tiefgruendiger Sandboden, <10% Ton, geringe Wasserhaltefaehigkeit' },
-  { id: 'sandiger-lehm', name: 'Sandiger Lehmboden', soil_group: 2, texture: 'sandiger-lehm', drainage_class: 'gut durchlaessig', ph_class: 'C', description: '10-15% Ton, gute Bearbeitbarkeit, mittlere Wasserhaltefaehigkeit' },
-  { id: 'leichter-lehm', name: 'Leichter Lehmboden', soil_group: 3, texture: 'lehm', drainage_class: 'maessig durchlaessig', ph_class: 'C', description: '15-20% Ton, vielseitig nutzbar, gute Naehrstoffversorgung' },
-  { id: 'mittlerer-lehm', name: 'Mittlerer Lehmboden', soil_group: 4, texture: 'lehm', drainage_class: 'maessig durchlaessig', ph_class: 'C', description: '20-30% Ton, gute Ertragsfaehigkeit, typischer Ackerboden Mittelland' },
-  { id: 'schwerer-lehm', name: 'Schwerer Lehmboden', soil_group: 5, texture: 'toniger-lehm', drainage_class: 'schwer durchlaessig', ph_class: 'C', description: '30-40% Ton, hohe Naehrstoffspeicherung, schwere Bearbeitung' },
-  { id: 'tonboden', name: 'Tonboden', soil_group: 6, texture: 'ton', drainage_class: 'sehr schwer durchlaessig', ph_class: 'D', description: '>40% Ton, sehr hohe Naehrstoffspeicherung, Staunassegefahr' },
-  { id: 'humoser-lehm', name: 'Humoser Lehmboden', soil_group: 7, texture: 'humoser-lehm', drainage_class: 'maessig durchlaessig', ph_class: 'C', description: '4-8% Humus, hohe biologische Aktivitaet, gute Strukturstabilitaet' },
-  { id: 'moorig', name: 'Mooriger Boden', soil_group: 8, texture: 'torf', drainage_class: 'variabel', ph_class: 'A', description: '>15% organische Substanz, hohes N-Nachlieferungspotenzial, Sackungs­gefahr' },
-  { id: 'kalkboden', name: 'Kalkboden / Rendzina', soil_group: 9, texture: 'kalkig-lehm', drainage_class: 'gut durchlaessig', ph_class: 'E', description: 'Karbonatreicher Boden, pH >7.5, Jura/Voralpen typisch, P-Festlegung' },
-  { id: 'bergboden', name: 'Brauner Bergboden', soil_group: 10, texture: 'steiniger-lehm', drainage_class: 'gut durchlaessig', ph_class: 'B', description: 'Flachgruendig, steinig, Bergzone I-IV, tiefere Ertraege' },
-];
+console.log(`Ingested ${medicines.length} medicines`);
 
 // ---------------------------------------------------------------------------
-// 3. Nutrient Recommendations — GRUD 2017
-//    N based on Stickstoffbedarfswerte, P/K on GRUD Entzugsduengung
+// 2. Withdrawal times (Absetzfristen)
+//    Source: Swissmedic Tierarzneimittel-Kompendium, TAMV
 // ---------------------------------------------------------------------------
 
-interface NutrientRec {
-  crop_id: string;
-  soil_group: number;
-  altitude_zone: string;
-  previous_crop_group: string | null;
-  n_rec_kg_ha: number;
-  p_rec_kg_ha: number;
-  k_rec_kg_ha: number;
-  mg_rec_kg_ha: number;
+interface WithdrawalTime {
+  medicine_id: string;
+  species: string;
+  produce_type: string;
+  days: number;
   notes: string;
-  grud_section: string;
 }
 
-const nutrientRecs: NutrientRec[] = [
-  // Winterweizen — Talzone, different soil groups
-  { crop_id: 'winterweizen', soil_group: 1, altitude_zone: 'talzone', previous_crop_group: null, n_rec_kg_ha: 140, p_rec_kg_ha: 52, k_rec_kg_ha: 65, mg_rec_kg_ha: 15, notes: 'N-Bedarfswert GRUD: 140 kg N/ha bei 6.5 t/ha Ertrag. P/K Entzugsduengung bei Versorgungsklasse C.', grud_section: 'GRUD Kap. 6/7' },
-  { crop_id: 'winterweizen', soil_group: 4, altitude_zone: 'talzone', previous_crop_group: null, n_rec_kg_ha: 140, p_rec_kg_ha: 48, k_rec_kg_ha: 55, mg_rec_kg_ha: 12, notes: 'Mittlerer Lehm: leicht reduzierter K-Bedarf durch hoehere Bodenvorraete.', grud_section: 'GRUD Kap. 6/7' },
-  { crop_id: 'winterweizen', soil_group: 4, altitude_zone: 'talzone', previous_crop_group: 'koernerleguminosen', n_rec_kg_ha: 120, p_rec_kg_ha: 48, k_rec_kg_ha: 55, mg_rec_kg_ha: 12, notes: 'Vorfrucht Leguminose: N-Reduktion um 20 kg/ha (Suisse-Bilanz Korrekturfaktor).', grud_section: 'GRUD Kap. 6/7' },
-  { crop_id: 'winterweizen', soil_group: 4, altitude_zone: 'huegelzone', previous_crop_group: null, n_rec_kg_ha: 120, p_rec_kg_ha: 42, k_rec_kg_ha: 48, mg_rec_kg_ha: 10, notes: 'Huegelzone: reduzierter Ertrag (~5.5 t/ha) und entsprechend geringerer Naehrstoffbedarf.', grud_section: 'GRUD Kap. 6/7' },
+const withdrawalTimes: WithdrawalTime[] = [
+  // Amoxicillin (Clamoxyl RTU)
+  { medicine_id: 'amoxicillin-rind-schwein', species: 'Rind', produce_type: 'Fleisch', days: 15, notes: 'Nach i.m. Injektion' },
+  { medicine_id: 'amoxicillin-rind-schwein', species: 'Rind', produce_type: 'Milch', days: 3, notes: '60 Stunden (3 Tage)' },
+  { medicine_id: 'amoxicillin-rind-schwein', species: 'Schwein', produce_type: 'Fleisch', days: 14, notes: 'Nach i.m. Injektion' },
 
-  // Winterraps
-  { crop_id: 'winterraps', soil_group: 4, altitude_zone: 'talzone', previous_crop_group: null, n_rec_kg_ha: 150, p_rec_kg_ha: 56, k_rec_kg_ha: 70, mg_rec_kg_ha: 15, notes: 'Hoher N-Bedarf, Herbst-N beachten (40-60 kg N vor Winter fuer Rosette). S-Duengung 20-30 kg S/ha empfohlen.', grud_section: 'GRUD Kap. 6' },
+  // Amoxicillin Oral (Suramox)
+  { medicine_id: 'amoxicillin-oral-schwein', species: 'Schwein', produce_type: 'Fleisch', days: 2, notes: 'Ueber Trinkwasser' },
+  { medicine_id: 'amoxicillin-oral-schwein', species: 'Gefluegel', produce_type: 'Fleisch', days: 1, notes: 'Ueber Trinkwasser' },
+  { medicine_id: 'amoxicillin-oral-schwein', species: 'Gefluegel', produce_type: 'Eier', days: 0, notes: 'Keine Wartezeit fuer Eier' },
 
-  // Koernermais
-  { crop_id: 'koernermais', soil_group: 4, altitude_zone: 'talzone', previous_crop_group: null, n_rec_kg_ha: 130, p_rec_kg_ha: 65, k_rec_kg_ha: 60, mg_rec_kg_ha: 15, notes: 'N-Bedarfswert bei 10 t/ha. Band-/Unterfussduengung reduziert P-Bedarf. Mais hat hohes K-Aufnahmevermoegen.', grud_section: 'GRUD Kap. 6/7' },
+  // Penicillin G (Procacillin)
+  { medicine_id: 'penicillin-g-rind', species: 'Rind', produce_type: 'Fleisch', days: 10, notes: '' },
+  { medicine_id: 'penicillin-g-rind', species: 'Rind', produce_type: 'Milch', days: 4, notes: '84 Stunden' },
+  { medicine_id: 'penicillin-g-rind', species: 'Schwein', produce_type: 'Fleisch', days: 8, notes: '' },
+  { medicine_id: 'penicillin-g-rind', species: 'Schaf', produce_type: 'Fleisch', days: 10, notes: '' },
 
-  // Silomais
-  { crop_id: 'silomais', soil_group: 4, altitude_zone: 'talzone', previous_crop_group: null, n_rec_kg_ha: 120, p_rec_kg_ha: 68, k_rec_kg_ha: 200, mg_rec_kg_ha: 15, notes: 'Hoher K-Entzug durch Ganzpflanzenernte! Hofduenger bevorzugt einsetzen.', grud_section: 'GRUD Kap. 6/7' },
+  // Oxytetracyclin (Terramycin LA)
+  { medicine_id: 'oxytetracyclin-rind', species: 'Rind', produce_type: 'Fleisch', days: 28, notes: 'Langzeitformulierung (LA)' },
+  { medicine_id: 'oxytetracyclin-rind', species: 'Rind', produce_type: 'Milch', days: 7, notes: 'Nach Langzeitinjektion' },
+  { medicine_id: 'oxytetracyclin-rind', species: 'Schwein', produce_type: 'Fleisch', days: 14, notes: '' },
+  { medicine_id: 'oxytetracyclin-rind', species: 'Schaf', produce_type: 'Fleisch', days: 21, notes: '' },
 
-  // Kartoffeln
-  { crop_id: 'kartoffeln', soil_group: 4, altitude_zone: 'talzone', previous_crop_group: null, n_rec_kg_ha: 140, p_rec_kg_ha: 55, k_rec_kg_ha: 200, mg_rec_kg_ha: 20, notes: 'Kartoffeln: hoher K-Bedarf. Chloridempfindlich — Kalidüngung im Herbst (Patentkali) oder chloridfreie Formen.', grud_section: 'GRUD Kap. 6/7' },
+  // TMP/Sulfonamid (Borgal)
+  { medicine_id: 'tmp-sulfonamid-rind', species: 'Rind', produce_type: 'Fleisch', days: 10, notes: '' },
+  { medicine_id: 'tmp-sulfonamid-rind', species: 'Rind', produce_type: 'Milch', days: 4, notes: '96 Stunden' },
+  { medicine_id: 'tmp-sulfonamid-rind', species: 'Schwein', produce_type: 'Fleisch', days: 8, notes: '' },
+  { medicine_id: 'tmp-sulfonamid-rind', species: 'Pferd', produce_type: 'Fleisch', days: 12, notes: '' },
 
-  // Zuckerrueben
-  { crop_id: 'zuckerrueben', soil_group: 4, altitude_zone: 'talzone', previous_crop_group: null, n_rec_kg_ha: 120, p_rec_kg_ha: 55, k_rec_kg_ha: 250, mg_rec_kg_ha: 25, notes: 'Niedrigerer N, um Zuckergehalt zu sichern. Sehr hoher K-Bedarf. Na-Duengung (50 kg/ha) foerdert Ertrag.', grud_section: 'GRUD Kap. 6/7' },
+  // Tylosin (Tylan 200)
+  { medicine_id: 'tylosin-schwein', species: 'Schwein', produce_type: 'Fleisch', days: 14, notes: '' },
+  { medicine_id: 'tylosin-schwein', species: 'Rind', produce_type: 'Fleisch', days: 21, notes: '' },
+  { medicine_id: 'tylosin-schwein', species: 'Rind', produce_type: 'Milch', days: 4, notes: '96 Stunden' },
 
-  // Kunstwiese
-  { crop_id: 'kunstwiese-3j', soil_group: 4, altitude_zone: 'talzone', previous_crop_group: null, n_rec_kg_ha: 170, p_rec_kg_ha: 72, k_rec_kg_ha: 260, mg_rec_kg_ha: 20, notes: 'Bei >30% Kleeanteil: N-Reduktion um 30-50 kg/ha. Staffelung der N-Gaben ueber 4 Schnitte.', grud_section: 'GRUD Kap. 8' },
+  // Tulathromycin (Draxxin)
+  { medicine_id: 'tulathromycin-rind', species: 'Rind', produce_type: 'Fleisch', days: 35, notes: 'Lange Absetzfrist wegen Depot-Effekt' },
+  { medicine_id: 'tulathromycin-rind', species: 'Schwein', produce_type: 'Fleisch', days: 13, notes: '' },
 
-  // Naturwiese intensiv
-  { crop_id: 'naturwiese-intensiv', soil_group: 4, altitude_zone: 'talzone', previous_crop_group: null, n_rec_kg_ha: 130, p_rec_kg_ha: 60, k_rec_kg_ha: 220, mg_rec_kg_ha: 15, notes: 'Talzone intensiv Dauergruenland. P/K-Entzugsduengung. Hofduenger deckt Grossteil des Bedarfs.', grud_section: 'GRUD Kap. 8' },
+  // Enrofloxacin (Baytril) — Rot
+  { medicine_id: 'enrofloxacin-rind', species: 'Rind', produce_type: 'Fleisch', days: 14, notes: 'Nur mit Antibiogramm' },
+  { medicine_id: 'enrofloxacin-rind', species: 'Rind', produce_type: 'Milch', days: 4, notes: '84 Stunden' },
+  { medicine_id: 'enrofloxacin-rind', species: 'Schwein', produce_type: 'Fleisch', days: 10, notes: 'Nur mit Antibiogramm' },
 
-  // Naturwiese mittelintensiv
-  { crop_id: 'naturwiese-mittelintensiv', soil_group: 4, altitude_zone: 'talzone', previous_crop_group: null, n_rec_kg_ha: 80, p_rec_kg_ha: 45, k_rec_kg_ha: 165, mg_rec_kg_ha: 10, notes: 'Wenig intensiv genutztes Gruenland. Max 3 Schnitte. Hofduenger in der Regel ausreichend.', grud_section: 'GRUD Kap. 8' },
+  // Ceftiofur (Excenel) — Rot
+  { medicine_id: 'ceftiofur-rind', species: 'Rind', produce_type: 'Fleisch', days: 8, notes: 'Cephalosporin 3. Gen, nur mit Antibiogramm' },
+  { medicine_id: 'ceftiofur-rind', species: 'Rind', produce_type: 'Milch', days: 0, notes: 'Keine Wartezeit (stoffwechselbedingt)' },
+  { medicine_id: 'ceftiofur-rind', species: 'Schwein', produce_type: 'Fleisch', days: 5, notes: '' },
 
-  // Dinkel
-  { crop_id: 'dinkel', soil_group: 4, altitude_zone: 'talzone', previous_crop_group: null, n_rec_kg_ha: 110, p_rec_kg_ha: 41, k_rec_kg_ha: 45, mg_rec_kg_ha: 10, notes: 'Dinkel (Urdinkel/UrDinkel): geringerer N-Bedarf als Weizen. Extenso-tauglich (ohne Fungizide/Insektizide).', grud_section: 'GRUD Kap. 6' },
+  // Cefquinom (Cobactan) — Rot
+  { medicine_id: 'cefquinom-rind', species: 'Rind', produce_type: 'Fleisch', days: 5, notes: 'Cephalosporin 4. Gen, nur mit Antibiogramm' },
+  { medicine_id: 'cefquinom-rind', species: 'Rind', produce_type: 'Milch', days: 1, notes: '24 Stunden' },
+  { medicine_id: 'cefquinom-rind', species: 'Schwein', produce_type: 'Fleisch', days: 3, notes: '' },
 
-  // Eiweisserbsen
-  { crop_id: 'koernereiweisserbsen', soil_group: 4, altitude_zone: 'talzone', previous_crop_group: null, n_rec_kg_ha: 0, p_rec_kg_ha: 35, k_rec_kg_ha: 55, mg_rec_kg_ha: 10, notes: 'Leguminose: kein N-Duenger noetig (biologische N-Fixierung). Positive Vorfruchtwirkung 20-40 kg N/ha.', grud_section: 'GRUD Kap. 6' },
+  // Colistin (Oral)
+  { medicine_id: 'colistin-schwein', species: 'Schwein', produce_type: 'Fleisch', days: 2, notes: 'Kritisch wichtig (WHO), restriktiv' },
+  { medicine_id: 'colistin-schwein', species: 'Kalb', produce_type: 'Fleisch', days: 7, notes: '' },
 
-  // Sojabohnen
-  { crop_id: 'sojabohnen', soil_group: 4, altitude_zone: 'talzone', previous_crop_group: null, n_rec_kg_ha: 0, p_rec_kg_ha: 42, k_rec_kg_ha: 55, mg_rec_kg_ha: 10, notes: 'Leguminose: Impfung mit Bradyrhizobium japonicum bei Erstanbau. Kein N-Duenger.', grud_section: 'GRUD Kap. 6' },
+  // Florfenicol (Nuflor)
+  { medicine_id: 'florfenicol-rind', species: 'Rind', produce_type: 'Fleisch', days: 30, notes: '' },
+  { medicine_id: 'florfenicol-rind', species: 'Schwein', produce_type: 'Fleisch', days: 18, notes: '' },
+
+  // Ivermectin (Ivomec)
+  { medicine_id: 'ivermectin-rind', species: 'Rind', produce_type: 'Fleisch', days: 28, notes: 'Injektion' },
+  { medicine_id: 'ivermectin-rind', species: 'Rind', produce_type: 'Milch', days: 0, notes: 'Nicht bei laktierenden Kuehen verwenden (kein MRL fuer Milch)' },
+  { medicine_id: 'ivermectin-rind', species: 'Schwein', produce_type: 'Fleisch', days: 28, notes: '' },
+  { medicine_id: 'ivermectin-rind', species: 'Schaf', produce_type: 'Fleisch', days: 14, notes: '' },
+
+  // Eprinomectin (Eprinex)
+  { medicine_id: 'eprinomectin-rind', species: 'Rind', produce_type: 'Fleisch', days: 15, notes: 'Pour-on' },
+  { medicine_id: 'eprinomectin-rind', species: 'Rind', produce_type: 'Milch', days: 0, notes: 'Keine Wartezeit (Vorteil gegenueber Ivermectin)' },
+
+  // Fenbendazol (Panacur)
+  { medicine_id: 'fenbendazol-rind', species: 'Rind', produce_type: 'Fleisch', days: 14, notes: '' },
+  { medicine_id: 'fenbendazol-rind', species: 'Rind', produce_type: 'Milch', days: 4, notes: '' },
+  { medicine_id: 'fenbendazol-rind', species: 'Schwein', produce_type: 'Fleisch', days: 4, notes: '' },
+  { medicine_id: 'fenbendazol-rind', species: 'Schaf', produce_type: 'Fleisch', days: 14, notes: '' },
+
+  // Meloxicam (Metacam)
+  { medicine_id: 'meloxicam-rind', species: 'Rind', produce_type: 'Fleisch', days: 15, notes: '' },
+  { medicine_id: 'meloxicam-rind', species: 'Rind', produce_type: 'Milch', days: 5, notes: '' },
+  { medicine_id: 'meloxicam-rind', species: 'Schwein', produce_type: 'Fleisch', days: 5, notes: '' },
+
+  // Flunixin (Finadyne)
+  { medicine_id: 'flunixin-rind', species: 'Rind', produce_type: 'Fleisch', days: 10, notes: '' },
+  { medicine_id: 'flunixin-rind', species: 'Rind', produce_type: 'Milch', days: 1, notes: '24 Stunden' },
+  { medicine_id: 'flunixin-rind', species: 'Pferd', produce_type: 'Fleisch', days: 10, notes: '' },
+
+  // Cloxacillin Trockensteller
+  { medicine_id: 'cloxacillin-rind-trockenst', species: 'Rind', produce_type: 'Milch', days: 0, notes: 'Trockensteller: Wartezeit = Trockenperiode (mind. 49 Tage vor Abkalbung)' },
+  { medicine_id: 'cloxacillin-rind-trockenst', species: 'Rind', produce_type: 'Fleisch', days: 28, notes: '' },
+
+  // Cloprostenol (Estrumate) — Hormon
+  { medicine_id: 'cloprostenol-rind', species: 'Rind', produce_type: 'Fleisch', days: 1, notes: '' },
+  { medicine_id: 'cloprostenol-rind', species: 'Rind', produce_type: 'Milch', days: 0, notes: '' },
+
+  // Oxytocin
+  { medicine_id: 'oxytocin-rind', species: 'Rind', produce_type: 'Fleisch', days: 0, notes: 'Kein MRL-Eintrag noetig' },
+  { medicine_id: 'oxytocin-rind', species: 'Rind', produce_type: 'Milch', days: 0, notes: '' },
+
+  // Calcium
+  { medicine_id: 'calciumgluconat-rind', species: 'Rind', produce_type: 'Fleisch', days: 0, notes: '' },
+  { medicine_id: 'calciumgluconat-rind', species: 'Rind', produce_type: 'Milch', days: 0, notes: '' },
 ];
 
+const insertWithdrawal = db.instance.prepare(
+  `INSERT INTO withdrawal_times (medicine_id, species, produce_type, days, notes, jurisdiction)
+   VALUES (?, ?, ?, ?, ?, 'CH')`
+);
+
+for (const w of withdrawalTimes) {
+  insertWithdrawal.run(w.medicine_id, w.species, w.produce_type, w.days, w.notes);
+}
+
+console.log(`Ingested ${withdrawalTimes.length} withdrawal time records`);
+
 // ---------------------------------------------------------------------------
-// 4. Manure Values — GRUD Kapitel 10 (Hofduenger Naehrstoffgehalte)
+// 3. Antibiotic categories — Ampelsystem (GST/BLV)
 // ---------------------------------------------------------------------------
 
-interface ManureValue {
-  animal_category: string;
-  housing_system: string;
-  n_per_gve: number;
-  p2o5_per_gve: number;
-  k2o_per_gve: number;
-  nh3_loss_pct: number;
+interface AntibioticCategory {
+  antibiotic_class: string;
+  ampel_color: string;
+  restrictions: string;
   notes: string;
 }
 
-const manureValues: ManureValue[] = [
-  { animal_category: 'milchkuh', housing_system: 'laufstall', n_per_gve: 105, p2o5_per_gve: 35, k2o_per_gve: 115, nh3_loss_pct: 15, notes: 'Milchkuh 6500 kg/Jahr. Guelle + Mist. Laufstall reduziert NH3 vs. Anbindestall.' },
-  { animal_category: 'milchkuh', housing_system: 'anbindestall', n_per_gve: 105, p2o5_per_gve: 35, k2o_per_gve: 115, nh3_loss_pct: 18, notes: 'Anbindestall: hoehere NH3-Verluste durch groessere Guelleoberfläche.' },
-  { animal_category: 'mutterkuh', housing_system: 'tiefstreu', n_per_gve: 95, p2o5_per_gve: 32, k2o_per_gve: 100, nh3_loss_pct: 12, notes: 'Mutterkuhhaltung Tiefstreu. Weniger Guelle, mehr Mist.' },
-  { animal_category: 'aufzuchtrind', housing_system: 'laufstall', n_per_gve: 85, p2o5_per_gve: 28, k2o_per_gve: 90, nh3_loss_pct: 14, notes: 'Aufzucht 1-2 Jahre. Pro Tier ca. 0.4-0.6 GVE.' },
-  { animal_category: 'mastschwein', housing_system: 'spalten', n_per_gve: 112, p2o5_per_gve: 48, k2o_per_gve: 60, nh3_loss_pct: 20, notes: 'Mastschwein 25-110 kg. Pro Tier ca. 0.17 GVE. N-reduzierte Fuetterung senkt N-Anfall um 10-15%.' },
-  { animal_category: 'zuchtsau', housing_system: 'spalten', n_per_gve: 120, p2o5_per_gve: 55, k2o_per_gve: 65, nh3_loss_pct: 22, notes: 'Zuchtsau mit Ferkeln bis 8 kg. Pro Tier ca. 0.45 GVE.' },
-  { animal_category: 'legehenne', housing_system: 'bodenhaltung', n_per_gve: 145, p2o5_per_gve: 75, k2o_per_gve: 65, nh3_loss_pct: 25, notes: 'Legehenne. Pro Tier ca. 0.014 GVE. Huehnermist ist P-reich — Suisse-Bilanz beachten!' },
-  { animal_category: 'mastpoulet', housing_system: 'bodenhaltung', n_per_gve: 150, p2o5_per_gve: 62, k2o_per_gve: 70, nh3_loss_pct: 28, notes: 'Mastpoulet. Pro Tier ca. 0.005 GVE. Trockenheit Einstreu: hohe NH3-Verluste.' },
-  { animal_category: 'pferd', housing_system: 'box', n_per_gve: 80, p2o5_per_gve: 25, k2o_per_gve: 90, nh3_loss_pct: 15, notes: 'Pferd. Pro Tier ca. 1.0 GVE. Pferdemist: geringer N, hoher K, gut fuer Kompost.' },
-  { animal_category: 'schaf', housing_system: 'laufstall', n_per_gve: 85, p2o5_per_gve: 25, k2o_per_gve: 75, nh3_loss_pct: 12, notes: 'Mutterschaf mit Lamm. Pro Tier ca. 0.17 GVE. Schafmist gut strukturiert.' },
-  { animal_category: 'ziege', housing_system: 'laufstall', n_per_gve: 90, p2o5_per_gve: 28, k2o_per_gve: 80, nh3_loss_pct: 12, notes: 'Milchziege. Pro Tier ca. 0.17 GVE.' },
+const antibioticCategories: AntibioticCategory[] = [
+  // --- Gruen: First-line, empirisch einsetzbar ---
+  {
+    antibiotic_class: 'Penicilline (Amoxicillin, Benzylpenicillin, Ampicillin)',
+    ampel_color: 'gruen',
+    restrictions: 'Empirischer Einsatz ohne Antibiogramm moeglich',
+    notes: 'Erste Wahl bei vielen bakteriellen Infektionen. Betrifft natuerliche und Aminopenicilline.',
+  },
+  {
+    antibiotic_class: 'Tetracycline (Oxytetracyclin, Doxycyclin, Chlortetracyclin)',
+    ampel_color: 'gruen',
+    restrictions: 'Empirischer Einsatz ohne Antibiogramm moeglich',
+    notes: 'Breitspektrum. Haeufig eingesetzt bei Rind und Schwein. Steigende Resistenzraten beachten.',
+  },
+  {
+    antibiotic_class: 'Sulfonamide + Trimethoprim',
+    ampel_color: 'gruen',
+    restrictions: 'Empirischer Einsatz ohne Antibiogramm moeglich',
+    notes: 'Synergistische Kombination. Breit einsetzbar bei Atemwegs- und Harnwegsinfektionen.',
+  },
+  {
+    antibiotic_class: 'Penicilline + Beta-Laktamase-Hemmer (Amoxicillin/Clavulansaeure)',
+    ampel_color: 'gruen',
+    restrictions: 'Empirischer Einsatz moeglich',
+    notes: 'Erweitertes Spektrum durch Beta-Laktamase-Hemmung. Wichtig bei Beta-Laktamase-bildenden Keimen.',
+  },
+
+  // --- Gelb: Second-line, Antibiogramm empfohlen ---
+  {
+    antibiotic_class: 'Makrolide (Tylosin, Tulathromycin, Tilmicosin, Spiramycin)',
+    ampel_color: 'gelb',
+    restrictions: 'Antibiogramm empfohlen. Einsatz als Second-line bei fehlendem Ansprechen auf First-line.',
+    notes: 'Wichtig fuer Atemwegserkrankungen bei Rind und Schwein. Einige Vertreter (Tulathromycin) mit langen Absetzfristen.',
+  },
+  {
+    antibiotic_class: 'Aminoglykoside (Gentamicin, Neomycin, Dihydrostreptomycin)',
+    ampel_color: 'gelb',
+    restrictions: 'Antibiogramm empfohlen. Parenteraler Einsatz mit Vorsicht (Nephro-/Ototoxizitaet).',
+    notes: 'Oft in Kombination mit Penicillinen. Neomycin nur oral (nicht resorbierbar). Streptomycin historisch haeufig.',
+  },
+  {
+    antibiotic_class: 'Lincosamide (Lincomycin)',
+    ampel_color: 'gelb',
+    restrictions: 'Antibiogramm empfohlen',
+    notes: 'Wirksam gegen grampositive und anaerobe Keime. Nie bei Pferden und Kaninchen (toedlich).',
+  },
+  {
+    antibiotic_class: 'Phenicole (Florfenicol)',
+    ampel_color: 'gelb',
+    restrictions: 'Antibiogramm empfohlen',
+    notes: 'Breitspektrum. Alternative bei Penicillin-Resistenz. Lange Absetzfristen.',
+  },
+
+  // --- Rot: Antibiogramm zwingend, kritisch wichtige AB ---
+  {
+    antibiotic_class: 'Fluoroquinolone (Enrofloxacin, Marbofloxacin, Danofloxacin)',
+    ampel_color: 'rot',
+    restrictions: 'Antibiogramm ZWINGEND. Einsatz nur wenn keine Alternative. WHO Highest Priority CIA.',
+    notes: 'Kritisch wichtig fuer Humanmedizin. IS ABV-meldepflichtig. Starke Reduktion angestrebt gemaess StAR.',
+  },
+  {
+    antibiotic_class: 'Cephalosporine 3./4. Generation (Ceftiofur, Cefquinom)',
+    ampel_color: 'rot',
+    restrictions: 'Antibiogramm ZWINGEND. Einsatz nur als Ultima Ratio. WHO Highest Priority CIA.',
+    notes: 'ESBL-Selektion. IS ABV-meldepflichtig. In einigen Laendern verboten fuer Nutztiere. StAR-Reduktionsziel.',
+  },
+  {
+    antibiotic_class: 'Polymyxine (Colistin)',
+    ampel_color: 'rot',
+    restrictions: 'Antibiogramm ZWINGEND. Last-resort-Antibiotikum in der Humanmedizin.',
+    notes: 'WHO Highest Priority CIA. MCR-Resistenzgene auf Plasmiden uebertragbar. Starke Reduktion angestrebt.',
+  },
 ];
 
+const insertCategory = db.instance.prepare(
+  `INSERT INTO antibiotic_categories (antibiotic_class, ampel_color, restrictions, notes, jurisdiction)
+   VALUES (?, ?, ?, ?, 'CH')`
+);
+
+for (const c of antibioticCategories) {
+  insertCategory.run(c.antibiotic_class, c.ampel_color, c.restrictions, c.notes);
+}
+
+console.log(`Ingested ${antibioticCategories.length} antibiotic categories`);
+
 // ---------------------------------------------------------------------------
-// 5. Commodity Prices — Swiss producer prices (SBV/BLW data)
+// 4. Resistance data — ARCH-Vet examples
+//    Source: ARCH-Vet Report 2023 (Daten 2022)
 // ---------------------------------------------------------------------------
 
-interface CommodityPrice {
-  crop_id: string;
-  market: string;
-  price_per_tonne: number;
-  price_source: string;
-  published_date: string;
+interface ResistanceEntry {
+  bacterium: string;
+  antibiotic_class: string;
+  resistance_pct: number;
+  trend: string;
+  species: string;
+  year: number;
   source: string;
 }
 
-const prices: CommodityPrice[] = [
-  { crop_id: 'winterweizen', market: 'produzentenpreis', price_per_tonne: 520, price_source: 'SBV/swiss granum', published_date: now, source: 'swiss granum Richtpreise Brotweizen Top' },
-  { crop_id: 'sommerweizen', market: 'produzentenpreis', price_per_tonne: 510, price_source: 'SBV/swiss granum', published_date: now, source: 'swiss granum Richtpreise Brotweizen I' },
-  { crop_id: 'wintergerste', market: 'produzentenpreis', price_per_tonne: 380, price_source: 'SBV/swiss granum', published_date: now, source: 'swiss granum Richtpreise Futtergerste' },
-  { crop_id: 'sommergerste', market: 'produzentenpreis', price_per_tonne: 440, price_source: 'SBV/swiss granum', published_date: now, source: 'swiss granum Richtpreise Braugerste' },
-  { crop_id: 'winterraps', market: 'produzentenpreis', price_per_tonne: 800, price_source: 'SBV/swiss granum', published_date: now, source: 'swiss granum Richtpreise HOLL-Raps' },
-  { crop_id: 'sonnenblumen', market: 'produzentenpreis', price_per_tonne: 760, price_source: 'SBV/swiss granum', published_date: now, source: 'swiss granum Richtpreise HO-Sonnenblumen' },
-  { crop_id: 'koernermais', market: 'produzentenpreis', price_per_tonne: 390, price_source: 'SBV/swiss granum', published_date: now, source: 'swiss granum Richtpreise Futtermais' },
-  { crop_id: 'kartoffeln', market: 'produzentenpreis', price_per_tonne: 320, price_source: 'swisspatat', published_date: now, source: 'swisspatat Richtpreise Speisekartoffeln fest' },
-  { crop_id: 'zuckerrueben', market: 'produzentenpreis', price_per_tonne: 52, price_source: 'Schweizer Zucker AG', published_date: now, source: 'Schweizer Zucker AG Ruebenpreis (inkl. Fruehrodungszuschlag)' },
-  { crop_id: 'dinkel', market: 'produzentenpreis', price_per_tonne: 620, price_source: 'SBV/swiss granum', published_date: now, source: 'swiss granum Richtpreise UrDinkel' },
-  { crop_id: 'koernereiweisserbsen', market: 'produzentenpreis', price_per_tonne: 530, price_source: 'SBV/swiss granum', published_date: now, source: 'swiss granum Richtpreise Futtereiweisserbsen' },
-  { crop_id: 'sojabohnen', market: 'produzentenpreis', price_per_tonne: 850, price_source: 'SBV/swiss granum', published_date: now, source: 'swiss granum Richtpreise Speisesoja' },
+const resistanceData: ResistanceEntry[] = [
+  // E. coli — Schwein
+  { bacterium: 'Escherichia coli', antibiotic_class: 'Ampicillin', resistance_pct: 52.3, trend: 'stabil', species: 'Schwein', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Escherichia coli', antibiotic_class: 'Tetracyclin', resistance_pct: 48.1, trend: 'leicht sinkend', species: 'Schwein', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Escherichia coli', antibiotic_class: 'Sulfonamide', resistance_pct: 43.5, trend: 'stabil', species: 'Schwein', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Escherichia coli', antibiotic_class: 'Ciprofloxacin (Fluoroquinolon)', resistance_pct: 11.2, trend: 'leicht sinkend', species: 'Schwein', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Escherichia coli', antibiotic_class: 'Cephalosporine 3. Gen', resistance_pct: 5.8, trend: 'sinkend', species: 'Schwein', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Escherichia coli', antibiotic_class: 'Colistin', resistance_pct: 1.2, trend: 'sinkend', species: 'Schwein', year: 2022, source: 'ARCH-Vet 2023' },
+
+  // E. coli — Rind
+  { bacterium: 'Escherichia coli', antibiotic_class: 'Ampicillin', resistance_pct: 38.7, trend: 'stabil', species: 'Rind', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Escherichia coli', antibiotic_class: 'Tetracyclin', resistance_pct: 33.4, trend: 'stabil', species: 'Rind', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Escherichia coli', antibiotic_class: 'Sulfonamide', resistance_pct: 31.2, trend: 'stabil', species: 'Rind', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Escherichia coli', antibiotic_class: 'Ciprofloxacin (Fluoroquinolon)', resistance_pct: 8.4, trend: 'stabil', species: 'Rind', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Escherichia coli', antibiotic_class: 'Cephalosporine 3. Gen', resistance_pct: 7.1, trend: 'leicht sinkend', species: 'Rind', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Escherichia coli', antibiotic_class: 'Colistin', resistance_pct: 0.5, trend: 'sinkend', species: 'Rind', year: 2022, source: 'ARCH-Vet 2023' },
+
+  // E. coli — Gefluegel
+  { bacterium: 'Escherichia coli', antibiotic_class: 'Ampicillin', resistance_pct: 55.8, trend: 'stabil', species: 'Gefluegel', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Escherichia coli', antibiotic_class: 'Tetracyclin', resistance_pct: 42.6, trend: 'leicht sinkend', species: 'Gefluegel', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Escherichia coli', antibiotic_class: 'Ciprofloxacin (Fluoroquinolon)', resistance_pct: 24.3, trend: 'leicht sinkend', species: 'Gefluegel', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Escherichia coli', antibiotic_class: 'Cephalosporine 3. Gen', resistance_pct: 4.2, trend: 'stabil', species: 'Gefluegel', year: 2022, source: 'ARCH-Vet 2023' },
+
+  // Campylobacter — Gefluegel
+  { bacterium: 'Campylobacter jejuni', antibiotic_class: 'Ciprofloxacin (Fluoroquinolon)', resistance_pct: 43.5, trend: 'steigend', species: 'Gefluegel', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Campylobacter jejuni', antibiotic_class: 'Tetracyclin', resistance_pct: 29.8, trend: 'stabil', species: 'Gefluegel', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Campylobacter jejuni', antibiotic_class: 'Erythromycin (Makrolid)', resistance_pct: 1.3, trend: 'stabil', species: 'Gefluegel', year: 2022, source: 'ARCH-Vet 2023' },
+
+  // MRSA — Schwein
+  { bacterium: 'MRSA (Staphylococcus aureus)', antibiotic_class: 'Methicillin/Oxacillin', resistance_pct: 26.1, trend: 'stabil', species: 'Schwein', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'MRSA (Staphylococcus aureus)', antibiotic_class: 'Tetracyclin', resistance_pct: 88.4, trend: 'stabil', species: 'Schwein', year: 2022, source: 'ARCH-Vet 2023' },
+
+  // Enterococcus — Gefluegel
+  { bacterium: 'Enterococcus faecium', antibiotic_class: 'Ampicillin', resistance_pct: 89.2, trend: 'stabil', species: 'Gefluegel', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Enterococcus faecium', antibiotic_class: 'Vancomycin', resistance_pct: 0.0, trend: 'stabil', species: 'Gefluegel', year: 2022, source: 'ARCH-Vet 2023' },
+
+  // Salmonella — Gefluegel
+  { bacterium: 'Salmonella spp.', antibiotic_class: 'Ampicillin', resistance_pct: 18.5, trend: 'stabil', species: 'Gefluegel', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Salmonella spp.', antibiotic_class: 'Ciprofloxacin (Fluoroquinolon)', resistance_pct: 6.3, trend: 'stabil', species: 'Gefluegel', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Salmonella spp.', antibiotic_class: 'Cephalosporine 3. Gen', resistance_pct: 1.1, trend: 'sinkend', species: 'Gefluegel', year: 2022, source: 'ARCH-Vet 2023' },
+
+  // Pasteurella — Rind
+  { bacterium: 'Pasteurella multocida', antibiotic_class: 'Tetracyclin', resistance_pct: 18.9, trend: 'leicht steigend', species: 'Rind', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Pasteurella multocida', antibiotic_class: 'Penicillin', resistance_pct: 2.1, trend: 'stabil', species: 'Rind', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Pasteurella multocida', antibiotic_class: 'Florfenicol', resistance_pct: 4.5, trend: 'stabil', species: 'Rind', year: 2022, source: 'ARCH-Vet 2023' },
+
+  // Staphylococcus aureus — Rind (Mastitis)
+  { bacterium: 'Staphylococcus aureus (Mastitis)', antibiotic_class: 'Penicillin', resistance_pct: 38.5, trend: 'stabil', species: 'Rind', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Staphylococcus aureus (Mastitis)', antibiotic_class: 'Erythromycin (Makrolid)', resistance_pct: 8.2, trend: 'stabil', species: 'Rind', year: 2022, source: 'ARCH-Vet 2023' },
+  { bacterium: 'Staphylococcus aureus (Mastitis)', antibiotic_class: 'Gentamicin', resistance_pct: 3.1, trend: 'stabil', species: 'Rind', year: 2022, source: 'ARCH-Vet 2023' },
+
+  // Historic comparison (2019) for trend analysis
+  { bacterium: 'Escherichia coli', antibiotic_class: 'Ciprofloxacin (Fluoroquinolon)', resistance_pct: 14.8, trend: 'Vergleichsjahr', species: 'Schwein', year: 2019, source: 'ARCH-Vet 2020' },
+  { bacterium: 'Escherichia coli', antibiotic_class: 'Cephalosporine 3. Gen', resistance_pct: 8.3, trend: 'Vergleichsjahr', species: 'Schwein', year: 2019, source: 'ARCH-Vet 2020' },
+  { bacterium: 'Escherichia coli', antibiotic_class: 'Colistin', resistance_pct: 2.8, trend: 'Vergleichsjahr', species: 'Schwein', year: 2019, source: 'ARCH-Vet 2020' },
 ];
 
-// ---------------------------------------------------------------------------
-// 6. Insert data
-// ---------------------------------------------------------------------------
-
-console.log('Inserting crops...');
-const insertCrop = db.instance.prepare(
-  'INSERT OR REPLACE INTO crops (id, name, crop_group, typical_yield_t_ha, nutrient_offtake_n, nutrient_offtake_p2o5, nutrient_offtake_k2o, growth_stages, altitude_zone, jurisdiction) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+const insertResistance = db.instance.prepare(
+  `INSERT INTO resistance_data (bacterium, antibiotic_class, resistance_pct, trend, species, year, source, jurisdiction)
+   VALUES (?, ?, ?, ?, ?, ?, ?, 'CH')`
 );
-for (const c of crops) {
-  insertCrop.run(c.id, c.name, c.crop_group, c.typical_yield_t_ha, c.nutrient_offtake_n, c.nutrient_offtake_p2o5, c.nutrient_offtake_k2o, JSON.stringify(c.growth_stages), c.altitude_zone, 'CH');
-}
-console.log(`  ${crops.length} crops inserted`);
 
-console.log('Inserting soil types...');
-const insertSoil = db.instance.prepare(
-  'INSERT OR REPLACE INTO soil_types (id, name, soil_group, texture, drainage_class, ph_class, description) VALUES (?, ?, ?, ?, ?, ?, ?)'
-);
-for (const s of soilTypes) {
-  insertSoil.run(s.id, s.name, s.soil_group, s.texture, s.drainage_class, s.ph_class, s.description);
+for (const r of resistanceData) {
+  insertResistance.run(r.bacterium, r.antibiotic_class, r.resistance_pct, r.trend, r.species, r.year, r.source);
 }
-console.log(`  ${soilTypes.length} soil types inserted`);
 
-console.log('Inserting nutrient recommendations...');
-const insertRec = db.instance.prepare(
-  'INSERT OR REPLACE INTO nutrient_recommendations (crop_id, soil_group, altitude_zone, previous_crop_group, n_rec_kg_ha, p_rec_kg_ha, k_rec_kg_ha, mg_rec_kg_ha, notes, grud_section, jurisdiction) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-);
-for (const r of nutrientRecs) {
-  insertRec.run(r.crop_id, r.soil_group, r.altitude_zone, r.previous_crop_group, r.n_rec_kg_ha, r.p_rec_kg_ha, r.k_rec_kg_ha, r.mg_rec_kg_ha, r.notes, r.grud_section, 'CH');
-}
-console.log(`  ${nutrientRecs.length} nutrient recommendations inserted`);
-
-console.log('Inserting manure values...');
-const insertManure = db.instance.prepare(
-  'INSERT OR REPLACE INTO manure_values (animal_category, housing_system, n_per_gve, p2o5_per_gve, k2o_per_gve, nh3_loss_pct, notes, jurisdiction) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-);
-for (const m of manureValues) {
-  insertManure.run(m.animal_category, m.housing_system, m.n_per_gve, m.p2o5_per_gve, m.k2o_per_gve, m.nh3_loss_pct, m.notes, 'CH');
-}
-console.log(`  ${manureValues.length} manure values inserted`);
-
-console.log('Inserting commodity prices...');
-const insertPrice = db.instance.prepare(
-  'INSERT OR REPLACE INTO commodity_prices (crop_id, market, price_per_tonne, currency, price_source, published_date, retrieved_at, source, jurisdiction) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-);
-for (const p of prices) {
-  insertPrice.run(p.crop_id, p.market, p.price_per_tonne, 'CHF', p.price_source, p.published_date, now, p.source, 'CH');
-}
-console.log(`  ${prices.length} prices inserted`);
+console.log(`Ingested ${resistanceData.length} resistance data records`);
 
 // ---------------------------------------------------------------------------
-// 7. Build FTS5 index
+// 5. Prescription rules — TAMV Abgabekategorien, Selbstdispensation, etc.
 // ---------------------------------------------------------------------------
 
-console.log('Building FTS5 search index...');
-db.instance.exec('DELETE FROM search_index');
+interface PrescriptionRule {
+  category: string;
+  description: string;
+  requirements: string;
+}
 
-// Index crops
-for (const c of crops) {
-  db.instance.prepare(
-    'INSERT INTO search_index (title, body, crop_group, jurisdiction) VALUES (?, ?, ?, ?)'
-  ).run(
-    c.name,
-    `${c.name} ${c.crop_group} Ertrag ${c.typical_yield_t_ha} t/ha N-Entzug ${c.nutrient_offtake_n} kg/ha P2O5 ${c.nutrient_offtake_p2o5} K2O ${c.nutrient_offtake_k2o} ${c.growth_stages.join(' ')} ${c.altitude_zone}`,
-    c.crop_group,
-    'CH'
+const prescriptionRules: PrescriptionRule[] = [
+  // Abgabekategorien
+  {
+    category: 'A — Einmalige Abgabe auf Rezept',
+    description: 'Tierarzneimittel der Kategorie A duerfen nur auf einmaliges tieraerztliches Rezept abgegeben werden. Jede Abgabe erfordert ein neues Rezept. Betrifft kritisch wichtige Antibiotika (Fluoroquinolone, Cephalosporine 3./4. Gen) und andere Hochrisiko-Praeparate.',
+    requirements: 'Tieraerztliches Rezept (einmalig gueltig). Abgabe nur durch Tierarzt oder Apotheke. Dokumentation im Behandlungsjournal. IS ABV-Meldung bei Antibiotika obligatorisch.',
+  },
+  {
+    category: 'B — Abgabe auf Rezept',
+    description: 'Tierarzneimittel der Kategorie B erfordern ein tieraerztliches Rezept. Rezept kann fuer wiederholte Bezuege gueltig sein (je nach Verschreibung). Umfasst die meisten verschreibungspflichtigen Tierarzneimittel (Antibiotika, NSAIDs, Hormone).',
+    requirements: 'Tieraerztliches Rezept. Abgabe durch Tierarzt, Apotheke oder Drogerie (mit pharmazeutischer Fachperson). Dokumentation im Behandlungsjournal.',
+  },
+  {
+    category: 'D — Abgabe nach Fachberatung',
+    description: 'Tierarzneimittel der Kategorie D duerfen nach Fachberatung durch eine qualifizierte Person abgegeben werden. Keine Verschreibungspflicht, aber Beratungspflicht. Umfasst Antiparasitika, Vitaminpraeparate, Mineralstoffergaenzungen.',
+    requirements: 'Fachberatung durch Apotheke, Drogerie oder Tierarztpraxis. Kein Rezept noetig. Fachperson muss Anwendung erklaeren.',
+  },
+  {
+    category: 'E — Frei erhaeltlich',
+    description: 'Tierarzneimittel der Kategorie E sind frei im Handel erhaeltlich. Keine Beratungs- oder Verschreibungspflicht. Betrifft Mineralstoffe, Futterergaenzungen, topische Pflegeprodukte.',
+    requirements: 'Frei verfuegbar. Keine besonderen Anforderungen. Verantwortung beim Tierhalter.',
+  },
+
+  // Selbstdispensation
+  {
+    category: 'Selbstdispensation',
+    description: 'Schweizer Spezifikum: Tieraerztinnen und Tieraerzte duerfen Tierarzneimittel direkt verkaufen und abgeben (TAMV Art. 10-11). In den meisten Laendern ist die Medikamentenabgabe von der Verschreibung getrennt. Die Selbstdispensation steht unter politischem Reformdruck wegen moeglicher Fehlanreize bei Antibiotika.',
+    requirements: 'Kantonale Bewilligung fuer tieraerztliche Privatapotheke. Lagerbuchhaltung. Meldepflicht ueber IS ABV fuer alle Antibiotika (seit 2019). Betaeubungsmittel separat bewilligt.',
+  },
+
+  // TAM-Vereinbarung
+  {
+    category: 'TAM-Vereinbarung',
+    description: 'Tierarzneimittel-Vereinbarung zwischen Tierarzt und Tierhalter (TAMV Art. 10a). Ermoeglicht Landwirten, bestimmte TAM unter definierten Bedingungen selbst anzuwenden. Gilt fuer haeufige Standardbehandlungen (z.B. Mastitisbehandlung, Entwurmung). Vertrag definiert Indikationen, Praeparate, Dosierungen und Absetzfristen.',
+    requirements: 'Schriftlicher Vertrag mit Bestandestierarzt. Jaehrliche Betriebsbesuche (Visite sanitaire). Tierhalter muss geschult sein. Behandlungsjournal fuehren. Gilt maximal 1 Jahr, dann Erneuerung. Nur fuer im Vertrag genannte Indikationen und Praeparate.',
+  },
+
+  // Behandlungsjournal
+  {
+    category: 'Behandlungsjournal',
+    description: 'Pflicht zur Dokumentation aller Tierarzneimittel-Behandlungen (TAMV Art. 26). Aufbewahrungsfrist 3 Jahre. Muss bei Kontrollen der kantonalen Veterinaerbehoerde vorgewiesen werden. Inhalt: Datum, Tier/Gruppe, Diagnose, Tierarzneimittel, Dosierung, Behandlungsdauer, Absetzfrist, behandelnde Person.',
+    requirements: 'Aufbewahrung 3 Jahre ab letztem Eintrag. Pro Betrieb. Muss fuer jede Behandlung gefuehrt werden. Auch bei TAM-Vereinbarung. Format frei (Papier oder elektronisch). Bei Verstoessen Kuerzung der Direktzahlungen moeglich.',
+  },
+
+  // Umwidmung (Kaskade)
+  {
+    category: 'Umwidmung (Kaskade)',
+    description: 'Anwendung eines TAM fuer eine andere Tierart oder Indikation als zugelassen (TAMV Art. 5-6). Erlaubt wenn kein zugelassenes TAM verfuegbar. Umwidmungskaskade: 1) TAM fuer andere Tierart/Indikation, 2) Humanarzneimittel, 3) Apotheke/Magistralrezeptur. Bei Umwidmung: Absetzfrist VERDOPPELT sich oder mindestens: Fleisch 28 Tage, Milch 7 Tage, Eier 7 Tage, Honig 0 Tage.',
+    requirements: 'Tieraerztliche Verschreibung zwingend. Dokumentation der Umwidmungsbegruendung. Verdoppelte Absetzfrist. Mindest-Absetzfristen bei fehlenden Angaben: Fleisch 28 Tage, Milch 7 Tage, Eier 7 Tage.',
+  },
+
+  // IS ABV
+  {
+    category: 'IS ABV — Antibiotikameldepflicht',
+    description: 'Informationssystem Antibiotika in der Veterinaermedizin (seit 1. Januar 2019 obligatorisch, TAMV Art. 64a ff.). Alle Antibiotikaverschreibungen an Nutztiere muessen elektronisch gemeldet werden. Daten umfassen: Tierarzt, Betrieb, Tierart, Antibiotikum, Menge, Behandlungsdauer. Ziel: Transparenz ueber Antibiotikaverbrauch, Erkennung von Vielverbrauchern, Benchmarking.',
+    requirements: 'Elektronische Meldung innert 3 Arbeitstagen nach Verschreibung/Abgabe. Gilt fuer alle Nutztier-Antibiotika (auch oral, intramammaer, topisch). Meldung ueber IS ABV-Portal (blv.admin.ch). Pflicht fuer alle Tieraerztinnen und Tieraerzte, die Nutztiere behandeln. Ausnahme: Heimtiere.',
+  },
+
+  // Betaeubungsmittel
+  {
+    category: 'Betaeubungsmittel und kontrollierte Substanzen',
+    description: 'Tierarzneimittel mit Betaeubungsmitteln (z.B. Ketamin, Xylazin, Buprenorphin) unterliegen zusaetzlich dem Betaeubungsmittelgesetz (BetmG). Separate Buchfuehrung, verschaerfter Lagerstandard (Tresor).',
+    requirements: 'Kantonale Bewilligung fuer Umgang mit Betaeubungsmitteln. Separate Buchfuehrung (Ein-/Ausgang). Lagerung unter Verschluss (Tresor). Jaehrliche Bestandesaufnahme. Meldung an kantonalen Apotheker.',
+  },
+];
+
+const insertRule = db.instance.prepare(
+  `INSERT INTO prescription_rules (category, description, requirements, jurisdiction)
+   VALUES (?, ?, ?, 'CH')`
+);
+
+for (const r of prescriptionRules) {
+  insertRule.run(r.category, r.description, r.requirements);
+}
+
+console.log(`Ingested ${prescriptionRules.length} prescription rules`);
+
+// ---------------------------------------------------------------------------
+// 6. StAR strategy targets
+//    Source: Strategie Antibiotikaresistenzen Schweiz (BLV)
+// ---------------------------------------------------------------------------
+
+interface StarTarget {
+  species: string | null;
+  target_description: string;
+  baseline_year: number;
+  target_year: number;
+  reduction_pct: number;
+  status: string;
+  notes: string;
+}
+
+const starTargets: StarTarget[] = [
+  {
+    species: null,
+    target_description: 'Gesamtreduktion des Antibiotikaverbrauchs in der Veterinaermedizin',
+    baseline_year: 2016,
+    target_year: 2026,
+    reduction_pct: 50,
+    status: 'Ziel weitgehend erreicht (−55% gemessen in mg/kg Lebendgewicht bis 2022)',
+    notes: 'Gemessen am Gesamtverkauf veterinaerantibiotischer Wirkstoffe. Schweiz hat 2022 den niedrigsten Verbrauch seit Beginn der Erfassung.',
+  },
+  {
+    species: null,
+    target_description: 'Reduktion kritisch wichtiger Antibiotika (Fluoroquinolone, Cephalosporine 3./4. Gen)',
+    baseline_year: 2016,
+    target_year: 2026,
+    reduction_pct: 70,
+    status: 'Uebertroffen (Fluoroquinolone −75%, Cephalosporine −64% bis 2022)',
+    notes: 'Fluoroquinolone-Verbrauch staerker gesunken als Cephalosporine. Colistin-Verbrauch ebenfalls stark reduziert.',
+  },
+  {
+    species: 'Schwein',
+    target_description: 'Reduktion Antibiotikaverbrauch Schweinehaltung',
+    baseline_year: 2016,
+    target_year: 2026,
+    reduction_pct: 50,
+    status: 'Weitgehend erreicht (−48% bis 2022)',
+    notes: 'Groesster Verbraucher in der Schweiz. Insbesondere bei oralen Gruppenmedikatione deutlicher Rueckgang. IS ABV-Daten zeigen grosse Betriebsunterschiede.',
+  },
+  {
+    species: 'Rind',
+    target_description: 'Reduktion Antibiotikaverbrauch Rinderhaltung',
+    baseline_year: 2016,
+    target_year: 2026,
+    reduction_pct: 35,
+    status: 'Teilweise erreicht (−31% bis 2022)',
+    notes: 'Hauptverbrauch bei Mastitis-Behandlung und Atemwegserkrankungen Kaelber. Trockensteller-Antibiotika ruecklaeufig.',
+  },
+  {
+    species: 'Gefluegel',
+    target_description: 'Reduktion Antibiotikaverbrauch Gefluegelproduktion',
+    baseline_year: 2016,
+    target_year: 2026,
+    reduction_pct: 40,
+    status: 'Erreicht (−52% bis 2022)',
+    notes: 'Starker Rueckgang dank verbessertem Bestandesmanagement und Impfprogrammen. Praeventiver Einsatz stark eingeschraenkt.',
+  },
+  {
+    species: null,
+    target_description: 'Etablierung IS ABV flaechendeckend',
+    baseline_year: 2019,
+    target_year: 2022,
+    reduction_pct: 0,
+    status: 'Abgeschlossen',
+    notes: 'Seit 2019 obligatorisch. Über 95% Compliance bei meldenden Tieraerzten. Datenqualitaet kontinuierlich verbessert.',
+  },
+  {
+    species: null,
+    target_description: 'Entwicklung betriebsspezifischer Benchmarks ueber IS ABV',
+    baseline_year: 2022,
+    target_year: 2027,
+    reduction_pct: 0,
+    status: 'In Umsetzung',
+    notes: 'Betriebsvergleiche (Therapieintensitaet pro Tierart). Vielverbraucher-Identifikation. Beratungsgespraeche bei Ueberschreitung der Kennzahlen.',
+  },
+  {
+    species: null,
+    target_description: 'Stärkung Antibiogramm-Pflicht fuer kritisch wichtige AB',
+    baseline_year: 2024,
+    target_year: 2027,
+    reduction_pct: 0,
+    status: 'Teilweise umgesetzt',
+    notes: 'Antibiogramm-Pflicht fuer Fluoroquinolone und Cephalosporine 3./4. Gen. Diskussion ueber Ausweitung auf Colistin und Makrolide.',
+  },
+  {
+    species: 'Schwein',
+    target_description: 'Reduktion orale Gruppenmedikation Schwein',
+    baseline_year: 2016,
+    target_year: 2026,
+    reduction_pct: 60,
+    status: 'Teilweise erreicht (−45% bis 2022)',
+    notes: 'Orale Gruppenmedikation ist der Haupttreiber des Verbrauchs in der Schweinehaltung. Alternativen: Einzeltierbehandlung, Impfprogramme, Haltungsoptimierung.',
+  },
+  {
+    species: null,
+    target_description: 'One Health-Ansatz: Koordination Human-/Veterinaermedizin',
+    baseline_year: 2015,
+    target_year: 2025,
+    reduction_pct: 0,
+    status: 'Laufend',
+    notes: 'Gemeinsame ARCH-Vet/ANRESIS-Berichterstattung. Interdisziplinaere Arbeitsgruppen. WHO-Koordination.',
+  },
+];
+
+const insertTarget = db.instance.prepare(
+  `INSERT INTO star_targets (species, target_description, baseline_year, target_year, reduction_pct, status, notes, jurisdiction)
+   VALUES (?, ?, ?, ?, ?, ?, ?, 'CH')`
+);
+
+for (const t of starTargets) {
+  insertTarget.run(t.species, t.target_description, t.baseline_year, t.target_year, t.reduction_pct, t.status, t.notes);
+}
+
+console.log(`Ingested ${starTargets.length} StAR targets`);
+
+// ---------------------------------------------------------------------------
+// 7. FTS5 search index — combine all data for full-text search
+// ---------------------------------------------------------------------------
+
+const insertSearch = db.instance.prepare(
+  `INSERT INTO search_index (title, body, category, jurisdiction) VALUES (?, ?, ?, 'CH')`
+);
+
+// Index medicines
+for (const m of medicines) {
+  insertSearch.run(
+    `${m.name} (${m.active_substance})`,
+    `Wirkstoff: ${m.active_substance}. Zieltiere: ${m.species}. Applikation: ${m.administration_route}. Swissmedic-Nr: ${m.swissmedic_number}. Abgabekategorie: ${m.category}.`,
+    'Tierarzneimittel'
   );
 }
 
-// Index soil types
-for (const s of soilTypes) {
-  db.instance.prepare(
-    'INSERT INTO search_index (title, body, crop_group, jurisdiction) VALUES (?, ?, ?, ?)'
-  ).run(
-    s.name,
-    `${s.name} Bodengruppe ${s.soil_group} Textur ${s.texture} Drainage ${s.drainage_class} pH-Klasse ${s.ph_class} ${s.description}`,
-    'boden',
-    'CH'
+// Index antibiotic categories
+for (const c of antibioticCategories) {
+  insertSearch.run(
+    `Ampelsystem ${c.ampel_color}: ${c.antibiotic_class}`,
+    `${c.restrictions} ${c.notes}`,
+    `Ampelsystem ${c.ampel_color}`
   );
 }
 
-// Index nutrient recs
-for (const r of nutrientRecs) {
-  const crop = crops.find(c => c.id === r.crop_id);
-  db.instance.prepare(
-    'INSERT INTO search_index (title, body, crop_group, jurisdiction) VALUES (?, ?, ?, ?)'
-  ).run(
-    `GRUD Empfehlung ${crop?.name ?? r.crop_id}`,
-    `${crop?.name ?? r.crop_id} Bodengruppe ${r.soil_group} ${r.altitude_zone} N ${r.n_rec_kg_ha} P ${r.p_rec_kg_ha} K ${r.k_rec_kg_ha} Mg ${r.mg_rec_kg_ha} ${r.notes}`,
-    crop?.crop_group ?? 'empfehlung',
-    'CH'
+// Index prescription rules
+for (const r of prescriptionRules) {
+  insertSearch.run(
+    r.category,
+    `${r.description} ${r.requirements}`,
+    'Verschreibungsregeln'
   );
 }
 
-// Index manure values
-for (const m of manureValues) {
-  db.instance.prepare(
-    'INSERT INTO search_index (title, body, crop_group, jurisdiction) VALUES (?, ?, ?, ?)'
-  ).run(
-    `Hofduenger ${m.animal_category} ${m.housing_system}`,
-    `${m.animal_category} ${m.housing_system} N ${m.n_per_gve} P2O5 ${m.p2o5_per_gve} K2O ${m.k2o_per_gve} NH3-Verlust ${m.nh3_loss_pct}% ${m.notes}`,
-    'hofduenger',
-    'CH'
+// Index resistance data (grouped by bacterium+species)
+const resistanceIndex = new Map<string, string[]>();
+for (const r of resistanceData) {
+  const key = `${r.bacterium} — ${r.species} (${r.year})`;
+  if (!resistanceIndex.has(key)) {
+    resistanceIndex.set(key, []);
+  }
+  resistanceIndex.get(key)!.push(
+    `${r.antibiotic_class}: ${r.resistance_pct}% (Trend: ${r.trend})`
+  );
+}
+for (const [key, entries] of resistanceIndex) {
+  insertSearch.run(
+    `Resistenzdaten: ${key}`,
+    entries.join('. '),
+    'ARCH-Vet Resistenzdaten'
   );
 }
 
-console.log('FTS5 index built');
+// Index StAR targets
+for (const t of starTargets) {
+  insertSearch.run(
+    `StAR: ${t.target_description}`,
+    `${t.species ?? 'Alle Tierarten'}. Basisjahr: ${t.baseline_year}. Ziel: ${t.target_year}. Reduktion: ${t.reduction_pct}%. Status: ${t.status}. ${t.notes}`,
+    'StAR Strategie'
+  );
+}
+
+console.log('FTS5 search index built');
 
 // ---------------------------------------------------------------------------
-// 8. Update metadata
+// 8. Metadata
 // ---------------------------------------------------------------------------
 
-db.instance.prepare('INSERT OR REPLACE INTO db_metadata (key, value) VALUES (?, ?)').run('last_ingest', now);
-db.instance.prepare('INSERT OR REPLACE INTO db_metadata (key, value) VALUES (?, ?)').run('build_date', now);
+db.run(`INSERT OR REPLACE INTO db_metadata (key, value) VALUES (?, ?)`, ['last_ingest', now]);
+db.run(`INSERT OR REPLACE INTO db_metadata (key, value) VALUES (?, ?)`, ['build_date', now]);
+db.run(`INSERT OR REPLACE INTO db_metadata (key, value) VALUES (?, ?)`, ['schema_version', '1.0']);
+
 console.log(`Metadata updated: last_ingest=${now}`);
 
 // ---------------------------------------------------------------------------
-// 9. Write coverage.json
+// 9. Update data/sources.yml
 // ---------------------------------------------------------------------------
 
-const coverage = {
-  server: 'ch-crop-nutrients-mcp',
-  jurisdiction: 'CH',
-  version: '0.1.0',
-  last_ingest: now,
-  data: {
-    crops: crops.length,
-    soil_types: soilTypes.length,
-    nutrient_recommendations: nutrientRecs.length,
-    manure_values: manureValues.length,
-    commodity_prices: prices.length,
-  },
-  tools: 11,
-  sources: ['GRUD 2017 (Agroscope)', 'Suisse-Bilanz Wegleitung (BLW)', 'AGRIDEA', 'SBV/swiss granum'],
-};
-
-writeFileSync('data/coverage.json', JSON.stringify(coverage, null, 2));
-console.log('Coverage written to data/coverage.json');
-
-// ---------------------------------------------------------------------------
-// 10. Write sources.yml
-// ---------------------------------------------------------------------------
-
-const sourcesYml = `# Data sources for ch-crop-nutrients-mcp
+const sourcesYml = `# Data sources for ch-vet-medicines-mcp
 sources:
-  - name: GRUD 2017
-    authority: Agroscope
-    url: https://www.agroscope.admin.ch/agroscope/de/home/themen/pflanzenbau/duengung.html
+  - name: Tierarzneimittel-Kompendium der Schweiz
+    authority: Swissmedic
+    url: https://www.tierarzneimittel.ch
     license: Swiss Federal Administration — free reuse
-    update_frequency: periodic (major revision ~10 years)
+    update_frequency: continuous (on approval changes)
     last_retrieved: "${now}"
 
-  - name: Suisse-Bilanz Wegleitung
-    authority: Bundesamt fuer Landwirtschaft (BLW)
-    url: https://www.blw.admin.ch/blw/de/home/instrumente/direktzahlungen/oekologischer-leistungsnachweis.html
+  - name: Tierarzneimittelverordnung (TAMV, SR 812.212.27)
+    authority: Schweizerischer Bundesrat
+    url: https://www.fedlex.admin.ch/eli/cc/2004/592/de
     license: Swiss Federal Administration — free reuse
-    update_frequency: annual (with DZV updates)
+    update_frequency: periodic (on revision)
     last_retrieved: "${now}"
 
-  - name: swiss granum Richtpreise
-    authority: swiss granum / SBV
-    url: https://www.swissgranum.ch/richtpreise
-    license: Public price information
-    update_frequency: annual (harvest season)
+  - name: IS ABV — Informationssystem Antibiotika in der Veterinaermedizin
+    authority: BLV
+    url: https://www.blv.admin.ch/blv/de/home/tiere/tierarzneimittel/antibiotika/isabv.html
+    license: Swiss Federal Administration — free reuse
+    update_frequency: continuous (mandatory reporting since 2019)
     last_retrieved: "${now}"
 
-  - name: swisspatat Richtpreise
-    authority: swisspatat
-    url: https://www.swisspatat.ch
-    license: Public price information
-    update_frequency: seasonal
+  - name: Antibiotikastrategie StAR
+    authority: BLV
+    url: https://www.star.admin.ch
+    license: Swiss Federal Administration — free reuse
+    update_frequency: periodic (strategy updates)
+    last_retrieved: "${now}"
+
+  - name: ARCH-Vet — Swiss Antibiotic Resistance Monitoring Report
+    authority: BLV / Universitaet Bern (ZOBA)
+    url: https://www.blv.admin.ch/blv/de/home/tiere/tierarzneimittel/antibiotika/arch-vet.html
+    license: Swiss Federal Administration — free reuse
+    update_frequency: annual
+    last_retrieved: "${now}"
+
+  - name: GST Therapierichtlinien
+    authority: Gesellschaft Schweizer Tieraerztinnen und Tieraerzte
+    url: https://www.gstsvs.ch
+    license: Professional guidelines — fair use
+    update_frequency: periodic
     last_retrieved: "${now}"
 `;
 
 writeFileSync('data/sources.yml', sourcesYml);
-console.log('Sources written to data/sources.yml');
+console.log('Updated data/sources.yml');
+
+// ---------------------------------------------------------------------------
+// 10. Update data/coverage.json
+// ---------------------------------------------------------------------------
+
+const coverage = {
+  server: 'ch-vet-medicines-mcp',
+  jurisdiction: 'CH',
+  version: '0.1.0',
+  last_ingest: now,
+  data: {
+    medicines: medicines.length,
+    withdrawal_times: withdrawalTimes.length,
+    antibiotic_categories: antibioticCategories.length,
+    resistance_data_entries: resistanceData.length,
+    prescription_rules: prescriptionRules.length,
+    star_targets: starTargets.length,
+  },
+  tools: 10,
+  sources: [
+    'Tierarzneimittel-Kompendium (Swissmedic)',
+    'TAMV (SR 812.212.27)',
+    'IS ABV (BLV)',
+    'StAR Strategie (BLV)',
+    'ARCH-Vet Report',
+    'GST Therapierichtlinien',
+  ],
+};
+
+writeFileSync('data/coverage.json', JSON.stringify(coverage, null, 2) + '\n');
+console.log('Updated data/coverage.json');
 
 db.close();
-console.log('\\nIngestion complete.');
+console.log('Ingestion complete.');

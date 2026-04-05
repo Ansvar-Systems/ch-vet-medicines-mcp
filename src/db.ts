@@ -42,71 +42,71 @@ export function createDatabase(dbPath?: string): Database {
 
 function initSchema(db: BetterSqlite3.Database): void {
   db.exec(`
-    CREATE TABLE IF NOT EXISTS crops (
+    CREATE TABLE IF NOT EXISTS medicines (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      crop_group TEXT NOT NULL,
-      typical_yield_t_ha REAL,
-      nutrient_offtake_n REAL,
-      nutrient_offtake_p2o5 REAL,
-      nutrient_offtake_k2o REAL,
-      growth_stages TEXT,
-      altitude_zone TEXT DEFAULT 'talzone',
-      jurisdiction TEXT NOT NULL DEFAULT 'CH'
+      active_substance TEXT NOT NULL,
+      species TEXT NOT NULL,
+      administration_route TEXT,
+      swissmedic_number TEXT,
+      category TEXT NOT NULL,
+      jurisdiction TEXT NOT NULL DEFAULT 'CH',
+      language TEXT NOT NULL DEFAULT 'DE'
     );
 
-    CREATE TABLE IF NOT EXISTS soil_types (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      soil_group INTEGER,
-      texture TEXT,
-      drainage_class TEXT,
-      ph_class TEXT,
-      description TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS nutrient_recommendations (
+    CREATE TABLE IF NOT EXISTS withdrawal_times (
       id INTEGER PRIMARY KEY,
-      crop_id TEXT REFERENCES crops(id),
-      soil_group INTEGER,
-      altitude_zone TEXT DEFAULT 'talzone',
-      previous_crop_group TEXT,
-      n_rec_kg_ha REAL,
-      p_rec_kg_ha REAL,
-      k_rec_kg_ha REAL,
-      mg_rec_kg_ha REAL,
-      notes TEXT,
-      grud_section TEXT,
-      jurisdiction TEXT NOT NULL DEFAULT 'CH'
-    );
-
-    CREATE TABLE IF NOT EXISTS manure_values (
-      id INTEGER PRIMARY KEY,
-      animal_category TEXT NOT NULL,
-      housing_system TEXT,
-      n_per_gve REAL,
-      p2o5_per_gve REAL,
-      k2o_per_gve REAL,
-      nh3_loss_pct REAL,
+      medicine_id TEXT NOT NULL REFERENCES medicines(id),
+      species TEXT NOT NULL,
+      produce_type TEXT NOT NULL,
+      days INTEGER NOT NULL,
       notes TEXT,
       jurisdiction TEXT NOT NULL DEFAULT 'CH'
     );
 
-    CREATE TABLE IF NOT EXISTS commodity_prices (
+    CREATE TABLE IF NOT EXISTS antibiotic_categories (
       id INTEGER PRIMARY KEY,
-      crop_id TEXT REFERENCES crops(id),
-      market TEXT,
-      price_per_tonne REAL,
-      currency TEXT DEFAULT 'CHF',
-      price_source TEXT NOT NULL,
-      published_date TEXT,
-      retrieved_at TEXT,
+      antibiotic_class TEXT NOT NULL,
+      ampel_color TEXT NOT NULL,
+      restrictions TEXT,
+      notes TEXT,
+      jurisdiction TEXT NOT NULL DEFAULT 'CH'
+    );
+
+    CREATE TABLE IF NOT EXISTS resistance_data (
+      id INTEGER PRIMARY KEY,
+      bacterium TEXT NOT NULL,
+      antibiotic_class TEXT NOT NULL,
+      resistance_pct REAL NOT NULL,
+      trend TEXT,
+      species TEXT NOT NULL,
+      year INTEGER NOT NULL,
       source TEXT,
       jurisdiction TEXT NOT NULL DEFAULT 'CH'
     );
 
+    CREATE TABLE IF NOT EXISTS prescription_rules (
+      id INTEGER PRIMARY KEY,
+      category TEXT NOT NULL,
+      description TEXT NOT NULL,
+      requirements TEXT,
+      jurisdiction TEXT NOT NULL DEFAULT 'CH'
+    );
+
+    CREATE TABLE IF NOT EXISTS star_targets (
+      id INTEGER PRIMARY KEY,
+      species TEXT,
+      target_description TEXT NOT NULL,
+      baseline_year INTEGER,
+      target_year INTEGER,
+      reduction_pct REAL,
+      status TEXT,
+      notes TEXT,
+      jurisdiction TEXT NOT NULL DEFAULT 'CH'
+    );
+
     CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
-      title, body, crop_group, jurisdiction
+      title, body, category, jurisdiction
     );
 
     CREATE TABLE IF NOT EXISTS db_metadata (
@@ -115,20 +115,20 @@ function initSchema(db: BetterSqlite3.Database): void {
     );
 
     INSERT OR IGNORE INTO db_metadata (key, value) VALUES ('schema_version', '1.0');
-    INSERT OR IGNORE INTO db_metadata (key, value) VALUES ('mcp_name', 'Switzerland Crop Nutrients MCP');
+    INSERT OR IGNORE INTO db_metadata (key, value) VALUES ('mcp_name', 'Switzerland Veterinary Medicines MCP');
     INSERT OR IGNORE INTO db_metadata (key, value) VALUES ('jurisdiction', 'CH');
   `);
 }
 
-const FTS_COLUMNS = ['title', 'body', 'crop_group', 'jurisdiction'];
+const FTS_COLUMNS = ['title', 'body', 'category', 'jurisdiction'];
 
 export function ftsSearch(
   db: Database,
   query: string,
   limit: number = 20
-): { title: string; body: string; crop_group: string; jurisdiction: string; rank: number }[] {
+): { title: string; body: string; category: string; jurisdiction: string; rank: number }[] {
   const { results } = tieredFtsSearch(db, 'search_index', FTS_COLUMNS, query, limit);
-  return results as { title: string; body: string; crop_group: string; jurisdiction: string; rank: number }[];
+  return results as { title: string; body: string; category: string; jurisdiction: string; rank: number }[];
 }
 
 /**
@@ -183,7 +183,7 @@ export function tieredFtsSearch(
   }
 
   // Tier 6: LIKE fallback
-  const baseCols = ['name', 'crop_group'];
+  const baseCols = ['name', 'active_substance'];
   const likeConditions = words.map(() =>
     `(${baseCols.map(c => `${c} LIKE ?`).join(' OR ')})`
   ).join(' AND ');
@@ -192,7 +192,7 @@ export function tieredFtsSearch(
   );
   try {
     const likeResults = db.all<Record<string, unknown>>(
-      `SELECT name as title, COALESCE(growth_stages, '') as body, crop_group, jurisdiction FROM crops WHERE ${likeConditions} LIMIT ?`,
+      `SELECT name as title, COALESCE(active_substance, '') as body, category, jurisdiction FROM medicines WHERE ${likeConditions} LIMIT ?`,
       [...likeParams, limit]
     );
     if (likeResults.length > 0) return { tier: 'like', results: likeResults };

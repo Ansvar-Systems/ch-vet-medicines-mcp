@@ -3,15 +3,24 @@ import { SUPPORTED_JURISDICTIONS } from '../jurisdiction.js';
 
 export function handleAbout() {
   return {
-    name: 'Switzerland Crop Nutrients MCP',
+    name: 'Switzerland Veterinary Medicines MCP',
     description:
-      'Swiss crop nutrient recommendations based on GRUD (Agroscope), Suisse-Bilanz (BLW), and OELN standards. ' +
-      'Provides NPK planning, soil classification, nitrogen balance (Suisse-Bilanz), manure nutrient values, ' +
-      'and commodity pricing for agricultural decision-making in Switzerland.',
+      'Swiss veterinary medicine data based on the Tierarzneimittel-Kompendium (Swissmedic), ' +
+      'Tierarzneimittelverordnung (TAMV), Antibiotikastrategie StAR (BLV), IS ABV reporting data, ' +
+      'and ARCH-Vet resistance monitoring. Provides medicine search, withdrawal times (Absetzfristen), ' +
+      'antibiotic Ampelsystem classification, prescription and dispensing rules (Abgabekategorien, ' +
+      'Selbstdispensation), antibiotic resistance trends, and StAR strategy targets.',
     version: '0.1.0',
     jurisdiction: [...SUPPORTED_JURISDICTIONS],
-    data_sources: ['GRUD 2017 (Agroscope)', 'Suisse-Bilanz Wegleitung (BLW)', 'AGRIDEA Duengungsplanung', 'SBV Produzentenpreise'],
-    tools_count: 11,
+    data_sources: [
+      'Tierarzneimittel-Kompendium (Swissmedic)',
+      'Tierarzneimittelverordnung TAMV (SR 812.212.27)',
+      'Antibiotikastrategie StAR (BLV)',
+      'IS ABV — Informationssystem Antibiotika in der Veterinaermedizin',
+      'ARCH-Vet Report (jaehrlich)',
+      'GST Therapierichtlinien',
+    ],
+    tools_count: 10,
     links: {
       homepage: 'https://ansvar.eu/open-agriculture',
       repository: 'https://github.com/ansvar-systems/ch-vet-medicines-mcp',

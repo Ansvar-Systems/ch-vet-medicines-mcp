@@ -1,29 +1,43 @@
-# Data sources for ch-crop-nutrients-mcp
+# Data sources for ch-vet-medicines-mcp
 sources:
-  - name: GRUD 2017
-    authority: Agroscope
-    url: https://www.agroscope.admin.ch/agroscope/de/home/themen/pflanzenbau/duengung.html
+  - name: Tierarzneimittel-Kompendium der Schweiz
+    authority: Swissmedic
+    url: https://www.tierarzneimittel.ch
     license: Swiss Federal Administration — free reuse
-    update_frequency: periodic (major revision ~10 years)
+    update_frequency: continuous (on approval changes)
     last_retrieved: "2026-04-05"
 
-  - name: Suisse-Bilanz Wegleitung
-    authority: Bundesamt fuer Landwirtschaft (BLW)
-    url: https://www.blw.admin.ch/blw/de/home/instrumente/direktzahlungen/oekologischer-leistungsnachweis.html
+  - name: Tierarzneimittelverordnung (TAMV, SR 812.212.27)
+    authority: Schweizerischer Bundesrat
+    url: https://www.fedlex.admin.ch/eli/cc/2004/592/de
     license: Swiss Federal Administration — free reuse
-    update_frequency: annual (with DZV updates)
+    update_frequency: periodic (on revision)
     last_retrieved: "2026-04-05"
 
-  - name: swiss granum Richtpreise
-    authority: swiss granum / SBV
-    url: https://www.swissgranum.ch/richtpreise
-    license: Public price information
-    update_frequency: annual (harvest season)
+  - name: IS ABV — Informationssystem Antibiotika in der Veterinaermedizin
+    authority: BLV
+    url: https://www.blv.admin.ch/blv/de/home/tiere/tierarzneimittel/antibiotika/isabv.html
+    license: Swiss Federal Administration — free reuse
+    update_frequency: continuous (mandatory reporting since 2019)
     last_retrieved: "2026-04-05"
 
-  - name: swisspatat Richtpreise
-    authority: swisspatat
-    url: https://www.swisspatat.ch
-    license: Public price information
-    update_frequency: seasonal
+  - name: Antibiotikastrategie StAR
+    authority: BLV
+    url: https://www.star.admin.ch
+    license: Swiss Federal Administration — free reuse
+    update_frequency: periodic (strategy updates)
+    last_retrieved: "2026-04-05"
+
+  - name: ARCH-Vet — Swiss Antibiotic Resistance Monitoring Report
+    authority: BLV / Universitaet Bern (ZOBA)
+    url: https://www.blv.admin.ch/blv/de/home/tiere/tierarzneimittel/antibiotika/arch-vet.html
+    license: Swiss Federal Administration — free reuse
+    update_frequency: annual
+    last_retrieved: "2026-04-05"
+
+  - name: GST Therapierichtlinien
+    authority: Gesellschaft Schweizer Tieraerztinnen und Tieraerzte
+    url: https://www.gstsvs.ch
+    license: Professional guidelines — fair use
+    update_frequency: periodic
     last_retrieved: "2026-04-05"

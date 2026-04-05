@@ -11,14 +11,13 @@ import { createDatabase } from './db.js';
 import { handleAbout } from './tools/about.js';
 import { handleListSources } from './tools/list-sources.js';
 import { handleCheckFreshness } from './tools/check-freshness.js';
-import { handleSearchCropRequirements } from './tools/search-crop-requirements.js';
-import { handleGetNutrientPlan } from './tools/get-nutrient-plan.js';
-import { handleGetSoilClassification } from './tools/get-soil-classification.js';
-import { handleListCrops } from './tools/list-crops.js';
-import { handleGetCropDetails } from './tools/get-crop-details.js';
-import { handleGetCommodityPrice } from './tools/get-commodity-price.js';
-import { handleCalculateMargin } from './tools/calculate-margin.js';
-import { handleGetManureValues } from './tools/get-manure-values.js';
+import { handleSearchMedicines } from './tools/search-medicines.js';
+import { handleGetMedicineDetails } from './tools/get-medicine-details.js';
+import { handleGetWithdrawalTimes } from './tools/get-withdrawal-times.js';
+import { handleGetAntibioticCategories } from './tools/get-antibiotic-categories.js';
+import { handleSearchResistanceData } from './tools/search-resistance-data.js';
+import { handleGetPrescriptionRules } from './tools/get-prescription-rules.js';
+import { handleGetStarTargets } from './tools/get-star-targets.js';
 
 const SERVER_NAME = 'ch-vet-medicines-mcp';
 const SERVER_VERSION = '0.1.0';
@@ -40,13 +39,13 @@ const TOOLS = [
     inputSchema: { type: 'object' as const, properties: {} },
   },
   {
-    name: 'search_crop_requirements',
-    description: 'Search crop nutrient requirements, soil data, and recommendations. Use for broad queries about Swiss crops and nutrients.',
+    name: 'search_medicines',
+    description: 'Search Swiss veterinary medicines (Tierarzneimittel). Use for broad queries about medicines, active substances, or species.',
     inputSchema: {
       type: 'object' as const,
       properties: {
-        query: { type: 'string', description: 'Free-text search query (German, French, or English)' },
-        crop_group: { type: 'string', description: 'Filter by crop group (e.g. getreide, oelsaaten, hackfruechte)' },
+        query: { type: 'string', description: 'Suchbegriff (Medikamentenname, Wirkstoff, oder Tierart)' },
+        species: { type: 'string', description: 'Filter nach Tierart (z.B. Rind, Schwein, Gefluegel, Pferd)' },
         jurisdiction: { type: 'string', description: 'ISO 3166-1 alpha-2 code (default: CH)' },
         limit: { type: 'number', description: 'Max results (default: 20, max: 50)' },
       },
@@ -54,147 +53,119 @@ const TOOLS = [
     },
   },
   {
-    name: 'get_nutrient_plan',
-    description: 'Get NPK+Mg fertiliser recommendation for a specific crop and soil type. Based on GRUD (Agroscope).',
+    name: 'get_medicine_details',
+    description: 'Get full profile for a veterinary medicine: active substance, target species, withdrawal times, Swissmedic number, dispensing category.',
     inputSchema: {
       type: 'object' as const,
       properties: {
-        crop: { type: 'string', description: 'Crop ID or name (e.g. winterweizen, winterraps)' },
-        soil_type: { type: 'string', description: 'Soil type ID or name (e.g. mittlerer-lehm)' },
-        altitude_zone: { type: 'string', description: 'Altitude zone: talzone, huegelzone, bergzone_i-iv (default: talzone)' },
-        previous_crop: { type: 'string', description: 'Previous crop group for rotation adjustment' },
+        medicine_id: { type: 'string', description: 'Medicine ID or name (z.B. amoxicillin-rind, cobactan)' },
         jurisdiction: { type: 'string', description: 'ISO 3166-1 alpha-2 code (default: CH)' },
       },
-      required: ['crop', 'soil_type'],
+      required: ['medicine_id'],
     },
   },
   {
-    name: 'get_soil_classification',
-    description: 'Get soil group, characteristics, pH class, and drainage for a Swiss soil type.',
+    name: 'get_withdrawal_times',
+    description: 'Get withdrawal periods (Absetzfristen) for veterinary medicines. Filter by medicine, species, or produce type (Milch, Fleisch, Eier).',
     inputSchema: {
       type: 'object' as const,
       properties: {
-        soil_type: { type: 'string', description: 'Soil type ID or name' },
-        texture: { type: 'string', description: 'Soil texture (e.g. lehm, ton, sand)' },
-        ph_class: { type: 'string', description: 'pH class (A-E)' },
+        medicine_id: { type: 'string', description: 'Medicine ID or name' },
+        species: { type: 'string', description: 'Tierart (z.B. Rind, Schwein, Gefluegel)' },
+        produce_type: { type: 'string', description: 'Lebensmitteltyp (Milch, Fleisch, Eier, Honig)' },
         jurisdiction: { type: 'string', description: 'ISO 3166-1 alpha-2 code (default: CH)' },
       },
     },
   },
   {
-    name: 'list_crops',
-    description: 'List all crops in the database, optionally filtered by crop group.',
+    name: 'get_antibiotic_categories',
+    description: 'Get the Swiss Ampelsystem classification of antibiotics (gruen/gelb/rot) with restrictions and usage rules.',
     inputSchema: {
       type: 'object' as const,
       properties: {
-        crop_group: { type: 'string', description: 'Filter by crop group (e.g. getreide)' },
         jurisdiction: { type: 'string', description: 'ISO 3166-1 alpha-2 code (default: CH)' },
       },
     },
   },
   {
-    name: 'get_crop_details',
-    description: 'Get full profile for a crop: GRUD nutrient norms, typical yields, growth stages.',
+    name: 'search_resistance_data',
+    description: 'Search ARCH-Vet antibiotic resistance monitoring data. Filter by bacterium, antibiotic class, or animal species.',
     inputSchema: {
       type: 'object' as const,
       properties: {
-        crop: { type: 'string', description: 'Crop ID or name' },
+        query: { type: 'string', description: 'Suchbegriff (Keim, Antibiotikum, Tierart)' },
+        bacterium: { type: 'string', description: 'Filter nach Bakterium (z.B. E. coli, MRSA, Campylobacter)' },
+        antibiotic_class: { type: 'string', description: 'Filter nach Antibiotikaklasse (z.B. Fluoroquinolone)' },
+        species: { type: 'string', description: 'Filter nach Tierart' },
         jurisdiction: { type: 'string', description: 'ISO 3166-1 alpha-2 code (default: CH)' },
+        limit: { type: 'number', description: 'Max results (default: 20, max: 50)' },
       },
-      required: ['crop'],
+      required: ['query'],
     },
   },
   {
-    name: 'get_commodity_price',
-    description: 'Get latest Swiss commodity price for a crop. Warns if data is stale (>14 days).',
+    name: 'get_prescription_rules',
+    description: 'Get Swiss veterinary medicine dispensing rules: Abgabekategorien (A, B, D, E), Selbstdispensation, TAM-Vereinbarung, Behandlungsjournal.',
     inputSchema: {
       type: 'object' as const,
       properties: {
-        crop: { type: 'string', description: 'Crop ID or name' },
-        market: { type: 'string', description: 'Market type (e.g. produzentenpreis, franko-muehle)' },
+        medicine_category: { type: 'string', description: 'Filter nach Kategorie (z.B. A, B, D, E, Selbstdispensation, Behandlungsjournal, Umwidmung)' },
         jurisdiction: { type: 'string', description: 'ISO 3166-1 alpha-2 code (default: CH)' },
       },
-      required: ['crop'],
     },
   },
   {
-    name: 'calculate_margin',
-    description: 'Estimate gross margin for a crop. Uses current commodity price if price_per_tonne not provided.',
+    name: 'get_star_targets',
+    description: 'Get StAR strategy (Strategie Antibiotikaresistenzen) reduction targets and progress for Swiss veterinary antibiotic use.',
     inputSchema: {
       type: 'object' as const,
       properties: {
-        crop: { type: 'string', description: 'Crop ID or name' },
-        yield_t_ha: { type: 'number', description: 'Expected yield in tonnes per hectare' },
-        price_per_tonne: { type: 'number', description: 'Override price (CHF/t). If omitted, uses latest market price.' },
-        input_costs: { type: 'number', description: 'Total input costs per hectare (CHF). Default: 0' },
-        jurisdiction: { type: 'string', description: 'ISO 3166-1 alpha-2 code (default: CH)' },
-      },
-      required: ['crop', 'yield_t_ha'],
-    },
-  },
-  {
-    name: 'get_manure_values',
-    description: 'Get manure nutrient content (N, P2O5, K2O) per GVE by animal category and housing system. Based on GRUD manure tables.',
-    inputSchema: {
-      type: 'object' as const,
-      properties: {
-        animal_category: { type: 'string', description: 'Animal category (e.g. milchkuh, mastschwein, legehenne)' },
-        housing_system: { type: 'string', description: 'Housing system (e.g. laufstall, anbindestall)' },
+        species: { type: 'string', description: 'Filter nach Tierart (z.B. Schwein, Rind, Gefluegel)' },
         jurisdiction: { type: 'string', description: 'ISO 3166-1 alpha-2 code (default: CH)' },
       },
     },
   },
 ];
 
-const SearchArgsSchema = z.object({
+const SearchMedicinesArgsSchema = z.object({
   query: z.string(),
-  crop_group: z.string().optional(),
+  species: z.string().optional(),
   jurisdiction: z.string().optional(),
   limit: z.number().optional(),
 });
 
-const NutrientPlanArgsSchema = z.object({
-  crop: z.string(),
-  soil_type: z.string(),
-  altitude_zone: z.string().optional(),
-  previous_crop: z.string().optional(),
+const MedicineDetailsArgsSchema = z.object({
+  medicine_id: z.string(),
   jurisdiction: z.string().optional(),
 });
 
-const SoilArgsSchema = z.object({
-  soil_type: z.string().optional(),
-  texture: z.string().optional(),
-  ph_class: z.string().optional(),
+const WithdrawalArgsSchema = z.object({
+  medicine_id: z.string().optional(),
+  species: z.string().optional(),
+  produce_type: z.string().optional(),
   jurisdiction: z.string().optional(),
 });
 
-const ListCropsArgsSchema = z.object({
-  crop_group: z.string().optional(),
+const AntibioticCategoriesArgsSchema = z.object({
   jurisdiction: z.string().optional(),
 });
 
-const CropDetailsArgsSchema = z.object({
-  crop: z.string(),
+const ResistanceArgsSchema = z.object({
+  query: z.string(),
+  bacterium: z.string().optional(),
+  antibiotic_class: z.string().optional(),
+  species: z.string().optional(),
+  jurisdiction: z.string().optional(),
+  limit: z.number().optional(),
+});
+
+const PrescriptionRulesArgsSchema = z.object({
+  medicine_category: z.string().optional(),
   jurisdiction: z.string().optional(),
 });
 
-const PriceArgsSchema = z.object({
-  crop: z.string(),
-  market: z.string().optional(),
-  jurisdiction: z.string().optional(),
-});
-
-const MarginArgsSchema = z.object({
-  crop: z.string(),
-  yield_t_ha: z.number(),
-  price_per_tonne: z.number().optional(),
-  input_costs: z.number().optional(),
-  jurisdiction: z.string().optional(),
-});
-
-const ManureArgsSchema = z.object({
-  animal_category: z.string().optional(),
-  housing_system: z.string().optional(),
+const StarTargetsArgsSchema = z.object({
+  species: z.string().optional(),
   jurisdiction: z.string().optional(),
 });
 
@@ -226,22 +197,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return textResult(handleListSources(db));
       case 'check_data_freshness':
         return textResult(handleCheckFreshness(db));
-      case 'search_crop_requirements':
-        return textResult(handleSearchCropRequirements(db, SearchArgsSchema.parse(args)));
-      case 'get_nutrient_plan':
-        return textResult(handleGetNutrientPlan(db, NutrientPlanArgsSchema.parse(args)));
-      case 'get_soil_classification':
-        return textResult(handleGetSoilClassification(db, SoilArgsSchema.parse(args)));
-      case 'list_crops':
-        return textResult(handleListCrops(db, ListCropsArgsSchema.parse(args)));
-      case 'get_crop_details':
-        return textResult(handleGetCropDetails(db, CropDetailsArgsSchema.parse(args)));
-      case 'get_commodity_price':
-        return textResult(handleGetCommodityPrice(db, PriceArgsSchema.parse(args)));
-      case 'calculate_margin':
-        return textResult(handleCalculateMargin(db, MarginArgsSchema.parse(args)));
-      case 'get_manure_values':
-        return textResult(handleGetManureValues(db, ManureArgsSchema.parse(args)));
+      case 'search_medicines':
+        return textResult(handleSearchMedicines(db, SearchMedicinesArgsSchema.parse(args)));
+      case 'get_medicine_details':
+        return textResult(handleGetMedicineDetails(db, MedicineDetailsArgsSchema.parse(args)));
+      case 'get_withdrawal_times':
+        return textResult(handleGetWithdrawalTimes(db, WithdrawalArgsSchema.parse(args)));
+      case 'get_antibiotic_categories':
+        return textResult(handleGetAntibioticCategories(db, AntibioticCategoriesArgsSchema.parse(args)));
+      case 'search_resistance_data':
+        return textResult(handleSearchResistanceData(db, ResistanceArgsSchema.parse(args)));
+      case 'get_prescription_rules':
+        return textResult(handleGetPrescriptionRules(db, PrescriptionRulesArgsSchema.parse(args)));
+      case 'get_star_targets':
+        return textResult(handleGetStarTargets(db, StarTargetsArgsSchema.parse(args)));
       default:
         return errorResult(`Unknown tool: ${name}`);
     }

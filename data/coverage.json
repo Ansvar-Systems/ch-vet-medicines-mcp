@@ -1,20 +1,23 @@
 {
-  "server": "ch-crop-nutrients-mcp",
+  "server": "ch-vet-medicines-mcp",
   "jurisdiction": "CH",
   "version": "0.1.0",
   "last_ingest": "2026-04-05",
   "data": {
-    "crops": 18,
-    "soil_types": 10,
-    "nutrient_recommendations": 15,
-    "manure_values": 11,
-    "commodity_prices": 12
+    "medicines": 45,
+    "withdrawal_times": 60,
+    "antibiotic_categories": 11,
+    "resistance_data_entries": 35,
+    "prescription_rules": 10,
+    "star_targets": 10
   },
-  "tools": 11,
+  "tools": 10,
   "sources": [
-    "GRUD 2017 (Agroscope)",
-    "Suisse-Bilanz Wegleitung (BLW)",
-    "AGRIDEA",
-    "SBV/swiss granum"
+    "Tierarzneimittel-Kompendium (Swissmedic)",
+    "TAMV (SR 812.212.27)",
+    "IS ABV (BLV)",
+    "StAR Strategie (BLV)",
+    "ARCH-Vet Report",
+    "GST Therapierichtlinien"
   ]
 }
