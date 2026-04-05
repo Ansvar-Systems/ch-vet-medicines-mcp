@@ -30,7 +30,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ansvar-systems/ch-vet-medicines-mcp"
+    "url": "https://github.com/Ansvar-Systems/ch-vet-medicines-mcp"
   },
   "homepage": "https://ansvar.eu/open-agriculture",
   "engines": {
