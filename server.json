@@ -1,0 +1,28 @@
+{
+  "name": "io.github.Ansvar-Systems/ch-vet-medicines",
+  "display_name": "Switzerland Veterinary Medicines MCP",
+  "description": "Swiss veterinary medicines -- Tierarzneimittel-Kompendium, IS ABV, Ampelsystem, StAR strategy, ARCH-Vet resistance data, TAMV prescription rules",
+  "version": "0.1.0",
+  "repository": "https://github.com/ansvar-systems/ch-vet-medicines-mcp",
+  "homepage": "https://ansvar.eu/open-agriculture",
+  "license": "Apache-2.0",
+  "transport": {
+    "stdio": {
+      "command": "npx",
+      "args": ["-y", "@ansvar/ch-vet-medicines-mcp"]
+    },
+    "streamable_http": {
+      "url": "https://mcp.ansvar.eu/ch-vet-medicines/mcp"
+    }
+  },
+  "tools": 10,
+  "jurisdiction": "CH",
+  "data_sources": [
+    "Tierarzneimittel-Kompendium (Swissmedic)",
+    "TAMV (SR 812.212.27)",
+    "IS ABV (BLV)",
+    "StAR Strategie (BLV)",
+    "ARCH-Vet Report",
+    "GST Therapierichtlinien"
+  ]
+}

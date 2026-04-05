@@ -1,0 +1,50 @@
+name: Ingest Data
+
+on:
+  schedule:
+    - cron: "0 4 * * 1"  # Weekly Monday 04:00 UTC
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force full re-ingestion (ignore diff)"
+        required: false
+        default: "false"
+
+permissions:
+  contents: write
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+
+      - name: Run ingestion
+        run: |
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            npm run ingest:full
+          else
+            npm run ingest
+          fi
+
+      - name: Update coverage
+        run: npm run coverage:update
+
+      - name: Check for changes
+        id: changes
+        run: |
+          git diff --quiet data/ && echo "changed=false" >> "$GITHUB_OUTPUT" || echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit updated data
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          git commit -m "data: automated ingestion $(date -u +%Y-%m-%d)"
+          git push

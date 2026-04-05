@@ -1,0 +1,10 @@
+# Default owners for ch-vet-medicines-mcp
+* @ansvar-systems/mcp-team
+
+# Data and ingestion
+data/ @ansvar-systems/mcp-team
+scripts/ @ansvar-systems/mcp-team
+
+# Security-sensitive files
+SECURITY.md @ansvar-systems/security
+.github/workflows/ @ansvar-systems/mcp-team @ansvar-systems/security
