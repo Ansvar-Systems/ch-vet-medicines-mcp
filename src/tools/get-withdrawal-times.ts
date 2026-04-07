@@ -1,4 +1,5 @@
 import { buildMeta } from '../metadata.js';
+import { buildCitation } from '../citation.js';
 import { validateJurisdiction } from '../jurisdiction.js';
 import type { Database } from '../db.js';
 
@@ -61,5 +62,11 @@ export function handleGetWithdrawalTimes(db: Database, args: WithdrawalArgs) {
     })),
     note: 'Bei Umwidmung (off-label) gilt die doppelte Absetzfrist gemaess TAMV Art. 5-6. Massgebend ist stets die aktuelle Fachinformation.',
     _meta: buildMeta(),
+    _citation: buildCitation(
+      'CH Withdrawal Times',
+      `Swiss veterinary withdrawal times${args.medicine_id ? ` (${args.medicine_id})` : ''}`,
+      'get_withdrawal_times',
+      { ...(args.medicine_id ? { medicine_id: args.medicine_id } : {}) },
+    ),
   };
 }

@@ -1,4 +1,5 @@
 import { buildMeta } from '../metadata.js';
+import { buildCitation } from '../citation.js';
 import { validateJurisdiction } from '../jurisdiction.js';
 import type { Database } from '../db.js';
 
@@ -77,5 +78,11 @@ function buildResult(
     })),
     jurisdiction,
     _meta: buildMeta(),
+    _citation: buildCitation(
+      `CH Vet Medicine — ${medicine.name}`,
+      `${medicine.name} (${medicine.active_substance})`,
+      'get_medicine_details',
+      { medicine_id: medicine.id },
+    ),
   };
 }

@@ -1,4 +1,5 @@
 import { buildMeta } from '../metadata.js';
+import { buildCitation } from '../citation.js';
 import { validateJurisdiction } from '../jurisdiction.js';
 import type { Database } from '../db.js';
 
@@ -42,5 +43,11 @@ export function handleGetStarTargets(db: Database, args: StarTargetsArgs) {
       notes: r.notes,
     })),
     _meta: buildMeta(),
+    _citation: buildCitation(
+      'CH StAR Targets',
+      `Swiss antibiotic resistance targets (StAR)${args.species ? ` — ${args.species}` : ''}`,
+      'get_star_targets',
+      { ...(args.species ? { species: args.species } : {}) },
+    ),
   };
 }
