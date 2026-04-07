@@ -1,4 +1,5 @@
 import { buildMeta } from '../metadata.js';
+import { buildCitation } from '../citation.js';
 import { validateJurisdiction } from '../jurisdiction.js';
 import type { Database } from '../db.js';
 
@@ -35,5 +36,11 @@ export function handleGetPrescriptionRules(db: Database, args: PrescriptionRules
       requirements: r.requirements,
     })),
     _meta: buildMeta(),
+    _citation: buildCitation(
+      'CH Prescription Rules',
+      `Swiss veterinary prescription rules${args.medicine_category ? ` (${args.medicine_category})` : ''}`,
+      'get_prescription_rules',
+      { ...(args.medicine_category ? { medicine_category: args.medicine_category } : {}) },
+    ),
   };
 }

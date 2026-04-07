@@ -1,4 +1,5 @@
 import { buildMeta } from '../metadata.js';
+import { buildCitation } from '../citation.js';
 import { validateJurisdiction } from '../jurisdiction.js';
 import type { Database } from '../db.js';
 
@@ -60,5 +61,11 @@ export function handleGetAntibioticCategories(db: Database, args: AntibioticCate
     },
     total_classes: rows.length,
     _meta: buildMeta(),
+    _citation: buildCitation(
+      'CH Antibiotic Categories',
+      'Swiss antibiotic traffic-light categories (StAR)',
+      'get_antibiotic_categories',
+      {},
+    ),
   };
 }
